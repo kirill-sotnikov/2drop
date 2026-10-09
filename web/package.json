@@ -1,0 +1,14 @@
+{
+  "name": "web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "service": "workspace:*"
+  }
+}

@@ -1,4 +1,12 @@
 {
   "name": "2drop",
+  "private": true,
+  "scripts": {
+    "typecheck": "yarn workspace service typecheck && yarn workspace web typecheck"
+  },
+  "workspaces": [
+    "service",
+    "web"
+  ],
   "packageManager": "yarn@4.18.1"
 }

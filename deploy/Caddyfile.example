@@ -1,0 +1,10 @@
+# Replace the domain. Caddy obtains/renews HTTPS certificates.
+drop.example.com {
+  @signaling path /ws /health
+  handle @signaling {
+    reverse_proxy 127.0.0.1:3001
+  }
+  handle {
+    reverse_proxy 127.0.0.1:8081
+  }
+}

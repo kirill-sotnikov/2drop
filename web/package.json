@@ -3,23 +3,27 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "next dev --webpack --port 8081",
     "build": "next build --webpack",
-    "start": "next start",
-    "typecheck": "next typegen && tsc --project tsconfig.json"
+    "start": "next start --port 8081",
+    "typecheck": "next typegen && tsc --project tsconfig.json",
+    "test": "tsx --test tests/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "24",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vanilla-extract/next-plugin": "2.5.2",
+    "tsx": "^4.20.6",
     "typescript": "6.0.3"
   },
   "dependencies": {
     "@vanilla-extract/css": "1.21.3",
     "next": "16.4.0",
+    "protocol": "workspace:*",
+    "qrcode": "^1.5.4",
     "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "service": "workspace:*"
+    "react-dom": "19.3.0"
   }
 }

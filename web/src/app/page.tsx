@@ -1,12 +1,5 @@
-import * as styles from "./page.css";
+import { HomeScreen } from "../components/home-screen";
 
 export default function HomePage() {
-  return (
-    <main className={styles.main}>
-      <h1 className={styles.title}>2drop</h1>
-      <p className={styles.description}>
-        Передача файлов между устройствами через браузер.
-      </p>
-    </main>
-  );
+  return <HomeScreen />;
 }

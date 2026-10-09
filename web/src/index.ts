@@ -1,3 +1,1 @@
-import { example } from "service";
-
-console.log(example);
+export { normalizeId } from "protocol";

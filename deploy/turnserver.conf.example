@@ -1,0 +1,29 @@
+# Replace the domain, addresses, certificate paths, and shared secret.
+# Run coturn on a public host; do not commit the populated configuration.
+listening-port=3478
+tls-listening-port=5349
+listening-ip=YOUR_PUBLIC_IP
+relay-ip=YOUR_PUBLIC_IP
+# If the host is behind NAT, use external-ip=PUBLIC_IP/PRIVATE_IP instead.
+min-port=49160
+max-port=49260
+realm=turn.example.com
+fingerprint
+use-auth-secret
+static-auth-secret=REPLACE_WITH_A_RANDOM_SECRET
+cert=/etc/letsencrypt/live/turn.example.com/fullchain.pem
+pkey=/etc/letsencrypt/live/turn.example.com/privkey.pem
+no-tlsv1
+no-tlsv1_1
+no-cli
+no-multicast-peers
+user-quota=4
+total-quota=100
+denied-peer-ip=0.0.0.0-0.255.255.255
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+denied-peer-ip=::1
+denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff

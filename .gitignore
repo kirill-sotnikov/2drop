@@ -21,3 +21,11 @@ node_modules
 out/
 next-env.d.ts
 *.tsbuildinfo
+
+# Build, local secrets, and browser test output
+dist/
+.env
+.env.local
+**/.env.local
+test-results/
+playwright-report/

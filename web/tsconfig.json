@@ -4,8 +4,21 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": [],
-    "jsx": "preserve"
+    "types": ["node", "react", "react-dom"],
+    "jsx": "preserve",
+    "allowJs": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "incremental": true,
+    "plugins": [{ "name": "next" }]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": [
+    "next-env.d.ts",
+    "next.config.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
 }

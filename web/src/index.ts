@@ -1,3 +1,3 @@
-import { example } from 'service';
+import { example } from "service";
 
 console.log(example);

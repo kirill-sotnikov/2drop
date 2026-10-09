@@ -15,3 +15,9 @@ node_modules
 
 #!.yarn/cache
 .pnp.*
+
+# Next.js and TypeScript generated files
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo

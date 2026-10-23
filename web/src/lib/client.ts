@@ -27,6 +27,7 @@ export type TransferView = {
   bytes: number;
   message?: string;
 };
+
 export type ClientState = {
   connection: "connecting" | "online" | "reconnecting" | "error";
   id: string | null;
@@ -35,6 +36,7 @@ export type ClientState = {
   received: { url: string; file: File; canShare: boolean } | null;
   error: string | null;
 };
+
 export const initialState: ClientState = {
   connection: "connecting",
   id: null,
@@ -43,6 +45,7 @@ export const initialState: ClientState = {
   received: null,
   error: null,
 };
+
 export const reasonText: Record<EndReason, string> = {
   complete: "Файл получен получателем.",
   rejected: "Получатель отклонил передачу.",
@@ -53,6 +56,7 @@ export const reasonText: Record<EndReason, string> = {
   failed: "Не удалось передать файл. Повторите попытку.",
   rotated: "ID обновлён. Откройте новое приглашение.",
 };
+
 const errors: Record<string, string> = {
   unavailable: "Получатель недоступен.",
   busy: "Участник занят другой передачей.",
@@ -63,6 +67,7 @@ const errors: Record<string, string> = {
   session_in_use:
     "Эта сессия уже открыта. Ожидаем отключения предыдущего соединения.",
 };
+
 type LookupStatus = "available" | "unavailable" | "busy" | "self";
 type Active = {
   transfer: Transfer;
@@ -74,6 +79,7 @@ type Active = {
   cancelling?: boolean;
   timer?: ReturnType<typeof setTimeout>;
 };
+
 const STORAGE_KEY = "2drop.session.v1";
 
 export class DropClient {
@@ -89,6 +95,7 @@ export class DropClient {
     file: File;
     timer: ReturnType<typeof setTimeout>;
   };
+
   private lookups = new Map<
     string,
     {
@@ -97,16 +104,21 @@ export class DropClient {
       timer: ReturnType<typeof setTimeout>;
     }
   >();
+
   private lastPaint = 0;
+
   constructor(private update: (state: ClientState) => void) {}
+
   private patch(patch: Partial<ClientState>) {
     this.state = { ...this.state, ...patch };
     this.update(this.state);
   }
+
   private view(patch: Partial<TransferView>) {
     if (this.state.transfer)
       this.patch({ transfer: { ...this.state.transfer, ...patch } });
   }
+
   private stored() {
     try {
       const result = resumeSchema.safeParse(
@@ -117,6 +129,7 @@ export class DropClient {
       return undefined;
     }
   }
+
   private save(value?: { id: string; secret: string }) {
     try {
       if (value) sessionStorage.setItem(STORAGE_KEY, JSON.stringify(value));
@@ -125,6 +138,7 @@ export class DropClient {
       /* The session still works when browser storage is disabled. */
     }
   }
+
   connect = () => {
     if (this.stopped) return;
     const configured = process.env.NEXT_PUBLIC_SIGNALING_URL;
@@ -178,11 +192,13 @@ export class DropClient {
       );
     };
   };
+
   private send(message: ClientMessage) {
     if (this.socket?.readyState !== WebSocket.OPEN) return false;
     this.socket.send(JSON.stringify(message));
     return true;
   }
+
   lookup = (targetId: string): Promise<LookupStatus> =>
     new Promise((resolve, reject) => {
       const requestId = crypto.randomUUID();
@@ -197,6 +213,7 @@ export class DropClient {
         reject(new Error("Нет соединения с сервером."));
       }
     });
+
   propose = (targetId: string, file: File, senderName: string) => {
     if (this.active || this.pendingOffer) return;
     if (file.size > this.state.maxFileBytes) {
@@ -228,6 +245,7 @@ export class DropClient {
       this.patch({ error: "Нет соединения с сервером." });
     }
   };
+
   decide = (accept: boolean) => {
     if (!this.active || this.state.transfer?.phase !== "incoming") return;
     if (accept) {
@@ -241,6 +259,7 @@ export class DropClient {
       accept,
     });
   };
+
   cancel = () => {
     if (this.active) {
       const active = this.active;
@@ -270,14 +289,18 @@ export class DropClient {
       this.socket?.close();
     }
   };
+
   rotate = () => {
     this.send({ v: VERSION, type: "rotate" });
   };
+
   clearError = () => this.patch({ error: null });
+
   discardReceived = () => {
     if (this.state.received) URL.revokeObjectURL(this.state.received.url);
     this.patch({ received: null });
   };
+
   private handle(message: ServerMessage) {
     if (message.type === "session") {
       clearTimeout(this.helloTimer);
@@ -412,6 +435,7 @@ export class DropClient {
       }
     }
   }
+
   private startPeer(active: Active, iceServers: IceServer[]) {
     if (active.peer) return;
     this.view({ phase: "connecting" });

@@ -5,7 +5,7 @@ const withVanillaExtract = createVanillaExtractPlugin();
 
 const nextConfig: NextConfig = {
   transpilePackages: ["protocol"],
-  allowedDevOrigins: ["shkryp.ru"],
+  allowedDevOrigins: ["lt.maninshorts.ru"],
 };
 
 export default withVanillaExtract(nextConfig);

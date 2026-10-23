@@ -1,15 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { formatId } from "protocol";
-import { useSession } from "./session-provider";
+import type { ReactNode } from "react";
 import * as styles from "../app/page.css";
+import { Icon } from "./icon";
+import { useSession } from "./session-provider";
 
 export function bytesLabel(bytes: number) {
   if (bytes < 1000) return `${bytes} Б`;
-  return `${(bytes / (bytes >= 1_000_000 ? 1_000_000 : 1000)).toLocaleString("ru", { maximumFractionDigits: 1 })} ${bytes >= 1_000_000 ? "МБ" : "КБ"}`;
+
+  const isMegabytes = bytes >= 1_000_000;
+  const divisor = isMegabytes ? 1_000_000 : 1000;
+  const unit = isMegabytes ? "МБ" : "КБ";
+  const size = (bytes / divisor).toLocaleString("ru", {
+    maximumFractionDigits: 1,
+  });
+
+  return `${size} ${unit}`;
 }
+
 const connectionText = {
   connecting: "Подключаемся…",
   online: "Готов к передаче",
@@ -18,34 +29,25 @@ const connectionText = {
 };
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { state, decide, cancel, rotate, discardReceived, clearError } =
-    useSession();
-  const [shareError, setShareError] = useState("");
+  const pathname = usePathname();
+  const { state, cancel, rotate, clearError } = useSession();
   const transfer = state.transfer;
   const busy = transfer && !["complete", "ended"].includes(transfer.phase);
+
   const transferring =
     transfer &&
     ["connecting", "transferring", "cancelling"].includes(transfer.phase);
-  async function share() {
-    setShareError("");
-    if (!state.received) return;
-    try {
-      const files = [state.received.file];
-      if (!navigator.canShare?.({ files })) {
-        setShareError("Для этого файла используйте ссылку «Скачать».");
-        return;
-      }
-      await navigator.share({ files });
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === "AbortError"))
-        setShareError("Не удалось открыть системное меню. Файл можно скачать.");
-    }
-  }
+
   return (
     <main className={styles.main}>
       <header className={styles.header}>
         <Link href="/" className={styles.logo}>
-          2drop<span className={styles.dot}>.</span>
+          <span className={styles.logoMark}>
+            <Icon name="send" size={22} />
+          </span>
+          <span>
+            2drop<span className={styles.dot}>.</span>
+          </span>
         </Link>
         <span
           className={styles.connection}
@@ -55,11 +57,22 @@ export function Shell({ children }: { children: ReactNode }) {
         </span>
       </header>
       <nav className={styles.nav} aria-label="Основная навигация">
-        <Link href="/">Отправить</Link>
-        <Link href="/receive">Получить</Link>
-        <span className={styles.myId}>
-          Ваш ID: <strong>{state.id ? formatId(state.id) : "…"}</strong>
-        </span>
+        <Link
+          href="/"
+          className={styles.navLink}
+          aria-current={pathname !== "/receive" ? "page" : undefined}
+        >
+          <Icon name="send" size={22} />
+          Отправить
+        </Link>
+        <Link
+          href="/receive"
+          className={styles.navLink}
+          aria-current={pathname === "/receive" ? "page" : undefined}
+        >
+          <Icon name="receive" size={22} />
+          Получить
+        </Link>
       </nav>
       {state.error && (
         <div className={styles.notice} role="alert">
@@ -70,41 +83,18 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       )}
       {children}
-      {transfer && (
+      {transfer?.direction === "send" && pathname !== "/receive" && (
         <section
           className={styles.card}
           aria-label="Текущая передача"
           aria-live="polite"
         >
-          <span className={styles.eyebrow}>
-            {transfer.direction === "send" ? "Отправка" : "Получение"}
-          </span>
+          <span className={styles.eyebrow}>Отправка</span>
           <h2 className={styles.fileName}>{transfer.transfer.file.name}</h2>
           <p className={styles.muted}>
-            {bytesLabel(transfer.transfer.file.size)} ·{" "}
-            {transfer.direction === "receive"
-              ? `Отправитель: ${transfer.transfer.senderName}`
-              : `Получатель: ${formatId(transfer.transfer.receiverId)}`}
+            {bytesLabel(transfer.transfer.file.size)} · Получатель:{" "}
+            {formatId(transfer.transfer.receiverId)}
           </p>
-          {transfer.phase === "incoming" && (
-            <>
-              <p>Принять этот файл?</p>
-              <div className={styles.actions}>
-                <button
-                  onClick={() => decide(true)}
-                  disabled={state.connection !== "online"}
-                >
-                  Принять
-                </button>
-                <button
-                  className={styles.secondary}
-                  onClick={() => decide(false)}
-                >
-                  Отклонить
-                </button>
-              </div>
-            </>
-          )}
           {transfer.phase === "offering" && (
             <p>Ожидаем подтверждения получателя…</p>
           )}
@@ -120,19 +110,14 @@ export function Shell({ children }: { children: ReactNode }) {
               <p>
                 {bytesLabel(transfer.bytes)} /{" "}
                 {bytesLabel(transfer.transfer.file.size)}
-                {transfer.direction === "send" &&
-                transfer.bytes === transfer.transfer.file.size
+                {transfer.bytes === transfer.transfer.file.size
                   ? " · Ожидаем подтверждения получения…"
                   : ""}
               </p>
             </>
           )}
           {transfer.phase === "complete" && (
-            <p className={styles.success}>
-              {transfer.direction === "receive"
-                ? "Файл получен приложением. Теперь его можно сохранить."
-                : "Файл получен получателем."}
-            </p>
+            <p className={styles.success}>Файл получен получателем.</p>
           )}
           {transfer.phase === "ended" && <p>{transfer.message}</p>}
           {busy && (
@@ -146,35 +131,8 @@ export function Shell({ children }: { children: ReactNode }) {
           )}
         </section>
       )}
-      {state.received && (
-        <section className={styles.card}>
-          <span className={styles.eyebrow}>Готов к сохранению</span>
-          <h2 className={styles.fileName}>{state.received.file.name}</h2>
-          <div className={styles.actions}>
-            <a
-              className={styles.button}
-              href={state.received.url}
-              download={state.received.file.name}
-            >
-              Скачать
-            </a>
-            {state.received.canShare && (
-              <button className={styles.secondary} onClick={share}>
-                Поделиться…
-              </button>
-            )}
-            <button className={styles.textButton} onClick={discardReceived}>
-              Удалить из приложения
-            </button>
-          </div>
-          {shareError && <p role="status">{shareError}</p>}
-          <p className={styles.muted}>
-            Скачивание и сохранение выполняет ваш браузер.
-          </p>
-        </section>
-      )}
       <footer className={styles.footer}>
-        <p>Без сжатия · Без регистрации · Через WebRTC</p>
+        <p>Без регистрации · Между устройствами</p>
         <p>
           Держите страницу открытой во время передачи. Лимит прототипа:{" "}
           {bytesLabel(state.maxFileBytes)}.

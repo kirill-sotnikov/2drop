@@ -2,14 +2,55 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
-import { normalizeId } from "protocol";
+import { formatId, normalizeId } from "protocol";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import * as styles from "../app/page.css";
+import { Icon } from "./icon";
+import { useSession } from "./session-provider";
+import { bytesLabel } from "./shell";
 
 export function HomeScreen() {
+  const { state } = useSession();
   const [id, setId] = useState("");
   const [error, setError] = useState("");
+  const recipientInput = useRef<HTMLInputElement>(null);
+  const pendingCursor = useRef<number | null>(null);
   const router = useRouter();
+  useLayoutEffect(() => {
+    if (pendingCursor.current === null) return;
+    recipientInput.current?.setSelectionRange(
+      pendingCursor.current,
+      pendingCursor.current,
+    );
+    pendingCursor.current = null;
+  }, [id]);
+
+  function changeRecipient(event: ChangeEvent<HTMLInputElement>) {
+    const { value: rawValue, selectionStart } = event.currentTarget;
+    const value = rawValue.toUpperCase();
+    const cursor = rawValue
+      .slice(0, selectionStart ?? rawValue.length)
+      .toUpperCase().length;
+    const inputType = (event.nativeEvent as InputEvent).inputType;
+    const deleting =
+      inputType?.startsWith("delete") ||
+      (!inputType && rawValue.length < id.length);
+    pendingCursor.current = value !== rawValue ? cursor : null;
+    // Format insertions only, so deleting the separator never puts it back.
+    if (!deleting && /^[a-z0-9]{4,8}$/i.test(value)) {
+      pendingCursor.current = cursor >= 4 ? cursor + 1 : cursor;
+      setId(`${value.slice(0, 4)}-${value.slice(4)}`);
+    } else {
+      setId(value);
+    }
+  }
+
   function submit(event: FormEvent) {
     event.preventDefault();
     const normalized = normalizeId(id);
@@ -22,26 +63,26 @@ export function HomeScreen() {
   return (
     <>
       <section className={styles.hero}>
-        <span className={styles.eyebrow}>С одного устройства на другое</span>
+        <span className={styles.eyebrow}>Ваш ID для получения файлов</span>
         <h1 className={styles.title}>
-          Ваш файл.
-          <br />
-          На другом экране.
+          {state.id ? formatId(state.id) : "Подключаемся…"}
         </h1>
-        <p className={styles.description}>
-          Фото, документ или архив — передайте исходный файл прямо через
-          браузер.
-        </p>
       </section>
-      <section className={styles.grid}>
-        <form className={styles.card} onSubmit={submit}>
-          <h2>Отправить файл</h2>
+      <section className={styles.grid} aria-label="Передача файлов">
+        <form className={styles.actionCard} onSubmit={submit}>
+          <div className={styles.cardHeading}>
+            <span className={styles.actionIcon}>
+              <Icon name="send" />
+            </span>
+            <h2 className={styles.cardTitle}>Отправить файл</h2>
+          </div>
           <label htmlFor="recipient">ID получателя</label>
           <input
             id="recipient"
+            ref={recipientInput}
             value={id}
-            onChange={(event) => setId(event.target.value)}
-            placeholder="K7M4-P9RX"
+            onChange={changeRecipient}
+            placeholder="A5CD-E2F3"
             autoCapitalize="characters"
             autoComplete="off"
             spellCheck={false}
@@ -49,21 +90,59 @@ export function HomeScreen() {
             required
           />
           {error && <p role="alert">{error}</p>}
-          <button type="submit">Продолжить →</button>
+          <button className={styles.cardButton} type="submit">
+            Продолжить →
+          </button>
         </form>
-        <section className={styles.card}>
-          <h2>Получить файл</h2>
+        <section className={styles.actionCard}>
+          <div className={styles.cardHeading}>
+            <span className={styles.actionIcon}>
+              <Icon name="receive" />
+            </span>
+            <h2 className={styles.cardTitle}>Получить файл</h2>
+          </div>
           <p className={styles.muted}>
             Покажите QR-код или сообщите свой ID отправителю. Передача начнётся
             после вашего согласия.
           </p>
           <Link
-            className={styles.button + " " + styles.secondary}
+            className={
+              styles.button + " " + styles.secondary + " " + styles.cardButton
+            }
             href="/receive"
           >
-            Показать мой QR
+            <Icon name="qr" size={20} /> Показать мой QR
           </Link>
         </section>
+      </section>
+      <section className={styles.banner}>
+        <div>
+          <h2 className={styles.bannerTitle}>
+            Между вами —<br />
+            только один клик.
+          </h2>
+          <p className={styles.bannerDescription}>
+            Фото, документы и архивы до {bytesLabel(state.maxFileBytes)}.
+            В исходном качестве.
+          </p>
+        </div>
+        <div className={styles.illustration} aria-hidden="true">
+          <div className={styles.paperBack} />
+          <div className={styles.paperFront}>
+            <Icon name="file" size={42} />
+          </div>
+        </div>
+      </section>
+      <section className={styles.infoRow}>
+        <span className={styles.shieldIcon}>
+          <Icon name="shield" />
+        </span>
+        <div>
+          <h2 className={styles.infoTitle}>Передача под вашим контролем</h2>
+          <p className={styles.infoText}>
+            Файл отправится только с согласия получателя
+          </p>
+        </div>
       </section>
     </>
   );

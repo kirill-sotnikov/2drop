@@ -21,23 +21,29 @@ type SessionContext = {
   discardReceived: DropClient["discardReceived"];
   clearError: DropClient["clearError"];
 };
+
 const Context = createContext<SessionContext | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(initialState);
   const client = useRef<DropClient | null>(null);
+
   useEffect(() => {
     const instance = new DropClient(setState);
     client.current = instance;
+
     // Strict Mode cleans up its first effect before this microtask runs.
     queueMicrotask(instance.connect);
     const pagehide = () => instance.dispose();
+
     // A page restored from the back/forward cache needs a fresh socket and engine.
     const pageshow = (event: PageTransitionEvent) => {
       if (event.persisted) location.reload();
     };
+
     window.addEventListener("pagehide", pagehide);
     window.addEventListener("pageshow", pageshow);
+
     return () => {
       client.current = null;
       window.removeEventListener("pagehide", pagehide);
@@ -45,6 +51,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       instance.dispose();
     };
   }, []);
+
   const actions = useMemo<Omit<SessionContext, "state">>(
     () => ({
       lookup: (id) =>
@@ -59,6 +66,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }),
     [],
   );
+
   return (
     <Context.Provider value={{ state, ...actions }}>
       {children}
@@ -69,5 +77,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 export function useSession() {
   const context = useContext(Context);
   if (!context) throw new Error("SessionProvider is missing");
+
   return context;
 }

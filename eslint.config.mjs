@@ -39,4 +39,9 @@ export default defineConfig([
     },
   },
   prettier,
+  {
+    rules: {
+      "no-irregular-whitespace": "off",
+    },
+  },
 ]);

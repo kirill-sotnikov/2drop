@@ -4,10 +4,10 @@ import { formatId } from "protocol";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import * as styles from "../app/page.css";
-import { useSession } from "./session-provider";
-import { bytesLabel } from "./shell";
+import { bytesLabel } from "../lib/format";
+import { useSession } from "../lib/session-context";
 
-export function ReceiveScreen() {
+export const ReceiveScreen = () => {
   const { state, decide, cancel } = useSession();
 
   const transfer =
@@ -25,25 +25,40 @@ export function ReceiveScreen() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!state.id || !canvas.current) return;
+    if (!state.id || !canvas.current) return undefined;
+
     let live = true;
+
     const url = new URL("/send", location.origin);
+
     url.searchParams.set("id", state.id);
-    void QRCode.toCanvas(canvas.current, url.href, {
-      width: 256,
-      margin: 2,
-      errorCorrectionLevel: "M",
-    }).catch(() => {
-      if (live) setMessage("Не удалось построить QR. Используйте ID.");
-    });
+
+    const target = canvas.current;
+
+    const renderCode = async () => {
+      try {
+        await QRCode.toCanvas(target, url.href, {
+          width: 256,
+          margin: 2,
+          errorCorrectionLevel: "M",
+        });
+      } catch {
+        if (live) setMessage("Не удалось построить QR. Используйте ID.");
+      }
+    };
+
+    void renderCode();
+
     return () => {
       live = false;
     };
   }, [state.id]);
 
   const copy = async () => {
+    if (!state.id) return;
+
     try {
-      await navigator.clipboard.writeText(state.id!);
+      await navigator.clipboard.writeText(state.id);
       setMessage("ID скопирован.");
     } catch {
       setMessage("Скопируйте ID вручную.");
@@ -68,7 +83,9 @@ export function ReceiveScreen() {
               aria-label={`QR для отправки файла на ID ${formatId(state.id)}`}
             />
             <p className={styles.bigId}>{formatId(state.id)}</p>
-            <button onClick={copy}>Скопировать ID</button>
+            <button type="button" onClick={copy}>
+              Скопировать ID
+            </button>
           </>
         )}
         <p aria-live="polite">
@@ -107,12 +124,14 @@ export function ReceiveScreen() {
             ) : transfer?.phase === "incoming" ? (
               <>
                 <button
+                  type="button"
                   onClick={() => decide(true)}
                   disabled={state.connection !== "online"}
                 >
                   Принять
                 </button>
                 <button
+                  type="button"
                   className={styles.secondary}
                   onClick={() => decide(false)}
                 >
@@ -122,6 +141,7 @@ export function ReceiveScreen() {
             ) : loading ? (
               <>
                 <button
+                  type="button"
                   className={styles.loadingButton}
                   disabled
                   aria-busy="true"
@@ -133,6 +153,7 @@ export function ReceiveScreen() {
                     : "Соединяемся…"}
                 </button>
                 <button
+                  type="button"
                   className={styles.secondary}
                   onClick={cancel}
                   disabled={transfer.phase === "cancelling"}
@@ -149,4 +170,4 @@ export function ReceiveScreen() {
       )}
     </>
   );
-}
+};

@@ -1,16 +1,16 @@
-import type { CSSProperties } from "react";
+import { type CSSProperties } from "react";
 
 type IconName = "send" | "receive" | "qr" | "shield" | "arrow" | "file";
 
-export function Icon({
+export const Icon = ({
   name,
   size = 24,
   style,
 }: {
-  name: IconName;
-  size?: number;
-  style?: CSSProperties;
-}) {
+  readonly name: IconName;
+  readonly size?: number;
+  readonly style?: CSSProperties;
+}) => {
   return (
     <svg
       width={size}
@@ -59,4 +59,4 @@ export function Icon({
       )}
     </svg>
   );
-}
+};

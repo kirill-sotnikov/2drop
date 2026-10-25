@@ -1,5 +1,7 @@
 import { ReceiveScreen } from "../../components/receive-screen";
 
-export default function ReceivePage() {
+const ReceivePage = () => {
   return <ReceiveScreen />;
-}
+};
+
+export default ReceivePage;

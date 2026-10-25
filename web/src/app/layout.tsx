@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
-import type { ReactNode } from "react";
 import "./global.css";
+import { type Metadata } from "next";
+import { type ReactNode } from "react";
 import { SessionProvider } from "../components/session-provider";
 import { Shell } from "../components/shell";
 
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: "Передача файлов между устройствами через браузер.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+const RootLayout = ({ children }: { readonly children: ReactNode }) => {
   return (
     <html lang="ru">
       <body>
@@ -19,4 +19,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </body>
     </html>
   );
-}
+};
+
+export default RootLayout;

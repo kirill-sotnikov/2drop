@@ -3,10 +3,13 @@ import { createSignalingServer } from "./server.js";
 
 const config = readConfig();
 const server = createSignalingServer(config);
+
 await server.listen();
+
 console.info(
   JSON.stringify({ event: "listening", host: config.host, port: config.port }),
 );
+
 if (!config.iceServers.length && !config.turnUrls.length) {
   console.info(
     JSON.stringify({
@@ -15,8 +18,10 @@ if (!config.iceServers.length && !config.turnUrls.length) {
     }),
   );
 }
+
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.once(signal, () => {
-    void server.close().then(() => process.exit(0));
+  process.once(signal, async () => {
+    await server.close();
+    process.exitCode = 0;
   });
 }

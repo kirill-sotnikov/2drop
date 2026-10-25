@@ -1,39 +1,25 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { DropClient, initialState, type ClientState } from "../lib/client";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { DropClient, initialState } from "../lib/client";
+import { SessionContext, type SessionValue } from "../lib/session-context";
 
-type SessionContext = {
-  state: ClientState;
-  lookup: DropClient["lookup"];
-  propose: DropClient["propose"];
-  decide: DropClient["decide"];
-  cancel: DropClient["cancel"];
-  rotate: DropClient["rotate"];
-  discardReceived: DropClient["discardReceived"];
-  clearError: DropClient["clearError"];
-};
-
-const Context = createContext<SessionContext | null>(null);
-
-export function SessionProvider({ children }: { children: ReactNode }) {
+export const SessionProvider = ({
+  children,
+}: {
+  readonly children: ReactNode;
+}) => {
   const [state, setState] = useState(initialState);
   const client = useRef<DropClient | null>(null);
 
   useEffect(() => {
     const instance = new DropClient(setState);
+
     client.current = instance;
 
     // Strict Mode cleans up its first effect before this microtask runs.
     queueMicrotask(instance.connect);
+
     const pagehide = () => instance.dispose();
 
     // A page restored from the back/forward cache needs a fresh socket and engine.
@@ -52,7 +38,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const actions = useMemo<Omit<SessionContext, "state">>(
+  const actions = useMemo<Omit<SessionValue, "state">>(
     () => ({
       lookup: (id) =>
         client.current?.lookup(id) ??
@@ -67,16 +53,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const value = useMemo(() => ({ state, ...actions }), [actions, state]);
+
   return (
-    <Context.Provider value={{ state, ...actions }}>
-      {children}
-    </Context.Provider>
+    <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
   );
-}
-
-export function useSession() {
-  const context = useContext(Context);
-  if (!context) throw new Error("SessionProvider is missing");
-
-  return context;
-}
+};

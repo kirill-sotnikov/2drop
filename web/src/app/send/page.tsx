@@ -1,15 +1,18 @@
 import { SendScreen } from "../../components/send-screen";
 
-export default async function SendPage({
+const SendPage = async ({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string | string[] }>;
-}) {
+  readonly searchParams: Promise<{ id?: string | string[] }>;
+}) => {
   const { id } = await searchParams;
+
   return (
     <SendScreen
       key={typeof id === "string" ? id : ""}
       target={typeof id === "string" ? id : ""}
     />
   );
-}
+};
+
+export default SendPage;

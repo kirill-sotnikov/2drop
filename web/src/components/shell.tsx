@@ -3,23 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { formatId } from "protocol";
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
 import * as styles from "../app/page.css";
+import { bytesLabel } from "../lib/format";
+import { useSession } from "../lib/session-context";
 import { Icon } from "./icon";
-import { useSession } from "./session-provider";
-
-export function bytesLabel(bytes: number) {
-  if (bytes < 1000) return `${bytes} Б`;
-
-  const isMegabytes = bytes >= 1_000_000;
-  const divisor = isMegabytes ? 1_000_000 : 1000;
-  const unit = isMegabytes ? "МБ" : "КБ";
-  const size = (bytes / divisor).toLocaleString("ru", {
-    maximumFractionDigits: 1,
-  });
-
-  return `${size} ${unit}`;
-}
 
 const connectionText = {
   connecting: "Подключаемся…",
@@ -28,7 +16,7 @@ const connectionText = {
   error: "Нет соединения",
 };
 
-export function Shell({ children }: { children: ReactNode }) {
+export const Shell = ({ children }: { readonly children: ReactNode }) => {
   const pathname = usePathname();
   const { state, cancel, rotate, clearError } = useSession();
   const transfer = state.transfer;
@@ -60,7 +48,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <Link
           href="/"
           className={styles.navLink}
-          aria-current={pathname !== "/receive" ? "page" : undefined}
+          aria-current={pathname === "/receive" ? undefined : "page"}
         >
           <Icon name="send" size={22} />
           Отправить
@@ -77,7 +65,11 @@ export function Shell({ children }: { children: ReactNode }) {
       {state.error && (
         <div className={styles.notice} role="alert">
           {state.error}{" "}
-          <button className={styles.textButton} onClick={clearError}>
+          <button
+            type="button"
+            className={styles.textButton}
+            onClick={clearError}
+          >
             Закрыть
           </button>
         </div>
@@ -122,6 +114,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {transfer.phase === "ended" && <p>{transfer.message}</p>}
           {busy && (
             <button
+              type="button"
               className={styles.secondary}
               onClick={cancel}
               disabled={transfer.phase === "cancelling"}
@@ -138,6 +131,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {bytesLabel(state.maxFileBytes)}.
         </p>
         <button
+          type="button"
           className={styles.textButton}
           onClick={rotate}
           disabled={Boolean(transferring) || state.connection !== "online"}
@@ -147,4 +141,4 @@ export function Shell({ children }: { children: ReactNode }) {
       </footer>
     </main>
   );
-}
+};

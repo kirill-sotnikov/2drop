@@ -1,19 +1,19 @@
 import {
+  type ClientMessage,
   CONNECT_TIMEOUT_MS,
   DEFAULT_MAX_FILE_BYTES,
-  resumeSchema,
-  serverMessageSchema,
-  VERSION,
-  type ClientMessage,
   type EndReason,
   type IceServer,
+  resumeSchema,
   type ServerMessage,
+  serverMessageSchema,
   type Signal,
   type Transfer,
+  VERSION,
 } from "protocol";
 import { FileChannel } from "./file-channel";
 
-export type TransferView = {
+export interface TransferView {
   transfer: Transfer;
   direction: "send" | "receive";
   phase:
@@ -26,16 +26,16 @@ export type TransferView = {
     | "ended";
   bytes: number;
   message?: string;
-};
+}
 
-export type ClientState = {
+export interface ClientState {
   connection: "connecting" | "online" | "reconnecting" | "error";
   id: string | null;
   maxFileBytes: number;
   transfer: TransferView | null;
   received: { url: string; file: File; canShare: boolean } | null;
   error: string | null;
-};
+}
 
 export const initialState: ClientState = {
   connection: "connecting",
@@ -69,7 +69,8 @@ const errors: Record<string, string> = {
 };
 
 type LookupStatus = "available" | "unavailable" | "busy" | "self";
-type Active = {
+
+interface Active {
   transfer: Transfer;
   file?: File;
   peer?: RTCPeerConnection;
@@ -78,18 +79,25 @@ type Active = {
   signalChain: Promise<void>;
   cancelling?: boolean;
   timer?: ReturnType<typeof setTimeout>;
-};
+}
 
 const STORAGE_KEY = "2drop.session.v1";
 
 export class DropClient {
   private state: ClientState = { ...initialState };
+
   private socket?: WebSocket;
+
   private stopped = false;
+
   private retry?: ReturnType<typeof setTimeout>;
+
   private helloTimer?: ReturnType<typeof setTimeout>;
+
   private attempts = 0;
+
   private active?: Active;
+
   private pendingOffer?: {
     requestId: string;
     file: File;
@@ -124,6 +132,7 @@ export class DropClient {
       const result = resumeSchema.safeParse(
         JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? "null"),
       );
+
       return result.success ? result.data : undefined;
     } catch {
       return undefined;
@@ -141,18 +150,24 @@ export class DropClient {
 
   connect = () => {
     if (this.stopped) return;
+
     const configured = process.env.NEXT_PUBLIC_SIGNALING_URL;
+
     if (!configured && location.protocol === "https:") {
       this.patch({
         connection: "error",
         error: "Не настроен защищённый адрес signaling-сервера.",
       });
+
       return;
     }
+
     const url =
       configured ||
       `ws://${location.hostname.includes(":") ? `[${location.hostname}]` : location.hostname}:3001/ws`;
+
     let socket: WebSocket;
+
     try {
       socket = new WebSocket(url);
     } catch {
@@ -160,35 +175,44 @@ export class DropClient {
         connection: "error",
         error: "Некорректный адрес signaling-сервера.",
       });
+
       return;
     }
+
     this.socket = socket;
     this.patch({ connection: this.state.id ? "reconnecting" : "connecting" });
     this.helloTimer = setTimeout(() => socket.close(), 10_000);
+
     socket.onopen = () =>
       this.send({ v: VERSION, type: "hello", resume: this.stored() });
+
     socket.onmessage = (event: MessageEvent) => {
       if (this.stopped || socket !== this.socket) return;
+
       try {
         const parsed = serverMessageSchema.parse(JSON.parse(event.data));
+
         this.handle(parsed);
       } catch {
         this.patch({ error: "Сервер прислал некорректное сообщение." });
         socket.close();
       }
     };
+
     socket.onerror = () => {
       /* onclose owns retries. */
     };
+
     socket.onclose = () => {
       if (this.stopped || socket !== this.socket) return;
       clearTimeout(this.helloTimer);
       this.finishLocal("disconnected");
       this.clearRequests();
       this.patch({ connection: "reconnecting" });
+
       this.retry = setTimeout(
         this.connect,
-        Math.min(10_000, 1000 * 2 ** Math.min(this.attempts++, 4)),
+        Math.min(10_000, 1_000 * 2 ** Math.min(this.attempts++, 4)),
       );
     };
   };
@@ -196,17 +220,21 @@ export class DropClient {
   private send(message: ClientMessage) {
     if (this.socket?.readyState !== WebSocket.OPEN) return false;
     this.socket.send(JSON.stringify(message));
+
     return true;
   }
 
   lookup = (targetId: string): Promise<LookupStatus> =>
     new Promise((resolve, reject) => {
       const requestId = crypto.randomUUID();
+
       const timer = setTimeout(() => {
         this.lookups.delete(requestId);
         reject(new Error("Получатель не ответил. Повторите проверку."));
-      }, 8000);
+      }, 8_000);
+
       this.lookups.set(requestId, { resolve, reject, timer });
+
       if (!this.send({ v: VERSION, type: "lookup", requestId, targetId })) {
         clearTimeout(timer);
         this.lookups.delete(requestId);
@@ -216,20 +244,28 @@ export class DropClient {
 
   propose = (targetId: string, file: File, senderName: string) => {
     if (this.active || this.pendingOffer) return;
+
     if (file.size > this.state.maxFileBytes) {
       this.patch({ error: errors.file_too_large });
+
       return;
     }
+
     const requestId = crypto.randomUUID();
+
     const timer = setTimeout(() => {
       this.pendingOffer = undefined;
+
       this.patch({
         error: "Сервер не подтвердил предложение. Переподключаемся.",
       });
+
       this.socket?.close();
-    }, 8000);
+    }, 8_000);
+
     this.pendingOffer = { requestId, file, timer };
     this.patch({ error: null, transfer: null });
+
     if (
       !this.send({
         v: VERSION,
@@ -248,10 +284,12 @@ export class DropClient {
 
   decide = (accept: boolean) => {
     if (!this.active || this.state.transfer?.phase !== "incoming") return;
+
     if (accept) {
       this.discardReceived();
       this.view({ phase: "connecting" });
     }
+
     this.send({
       v: VERSION,
       type: "decide",
@@ -263,11 +301,13 @@ export class DropClient {
   cancel = () => {
     if (this.active) {
       const active = this.active;
+
       if (active.cancelling) return;
       active.cancelling = true;
       active.channel?.stop();
       clearTimeout(active.timer);
       this.view({ phase: "cancelling", message: "Отменяем передачу…" });
+
       if (
         !this.send({
           v: VERSION,
@@ -276,15 +316,17 @@ export class DropClient {
         })
       ) {
         this.finishLocal("cancelled");
+
         return;
       }
+
       // Stop reading immediately, but keep RTC open until the server has decided
       // cancellation. Closing it earlier could race the other peer's failure report.
       active.timer = setTimeout(() => {
         if (this.active !== active) return;
         this.finishLocal("cancelled");
         this.socket?.close();
-      }, 5000);
+      }, 5_000);
     } else if (this.pendingOffer) {
       this.socket?.close();
     }
@@ -301,11 +343,60 @@ export class DropClient {
     this.patch({ received: null });
   };
 
+  private handleError(message: Extract<ServerMessage, { type: "error" }>) {
+    if (message.code === "unknown_transfer" && !this.active) return;
+
+    if (message.code === "invalid_resume") {
+      this.save();
+      this.send({ v: VERSION, type: "hello" });
+
+      return;
+    }
+
+    if (message.code === "session_in_use") {
+      // Duplicating a tab can copy sessionStorage. Give reloads time to release
+      // their socket, then create an independent session without taking ownership.
+      if (this.attempts >= 2) {
+        this.save();
+        this.send({ v: VERSION, type: "hello" });
+      } else {
+        this.patch({ error: errors.session_in_use });
+        this.socket?.close();
+      }
+
+      return;
+    }
+
+    const lookup = message.requestId
+      ? this.lookups.get(message.requestId)
+      : undefined;
+
+    const text =
+      errors[message.code] || "Запрос отклонён сервером. Повторите попытку.";
+
+    if (lookup && message.requestId) {
+      clearTimeout(lookup.timer);
+      this.lookups.delete(message.requestId);
+      lookup.reject(new Error(text));
+    }
+
+    if (
+      this.pendingOffer &&
+      message.requestId === this.pendingOffer.requestId
+    ) {
+      clearTimeout(this.pendingOffer.timer);
+      this.pendingOffer = undefined;
+    }
+
+    this.patch({ error: text });
+  }
+
   private handle(message: ServerMessage) {
     if (message.type === "session") {
       clearTimeout(this.helloTimer);
       this.attempts = 0;
       this.save({ id: message.id, secret: message.secret });
+
       this.patch({
         connection: "online",
         id: message.id,
@@ -313,41 +404,10 @@ export class DropClient {
         error: null,
       });
     } else if (message.type === "error") {
-      if (message.code === "unknown_transfer" && !this.active) return;
-      if (message.code === "invalid_resume") {
-        this.save();
-        this.send({ v: VERSION, type: "hello" });
-        return;
-      }
-      if (message.code === "session_in_use") {
-        // Duplicating a tab can copy sessionStorage. Give reloads time to release
-        // their socket, then create an independent session without taking ownership.
-        if (this.attempts >= 2) {
-          this.save();
-          this.send({ v: VERSION, type: "hello" });
-        } else {
-          this.patch({ error: errors.session_in_use });
-          this.socket?.close();
-        }
-        return;
-      }
-      const lookup = message.requestId
-        ? this.lookups.get(message.requestId)
-        : undefined;
-      const text =
-        errors[message.code] || "Запрос отклонён сервером. Повторите попытку.";
-      if (lookup) {
-        clearTimeout(lookup.timer);
-        this.lookups.delete(message.requestId!);
-        lookup.reject(new Error(text));
-      }
-      if (message.requestId === this.pendingOffer?.requestId) {
-        clearTimeout(this.pendingOffer!.timer);
-        this.pendingOffer = undefined;
-      }
-      this.patch({ error: text });
+      this.handleError(message);
     } else if (message.type === "lookup") {
       const lookup = this.lookups.get(message.requestId);
+
       if (lookup) {
         clearTimeout(lookup.timer);
         this.lookups.delete(message.requestId);
@@ -355,6 +415,7 @@ export class DropClient {
       }
     } else if (message.type === "incoming" || message.type === "proposed") {
       let file: File | undefined;
+
       if (message.type === "incoming") {
         if (this.active || this.pendingOffer) {
           this.send({
@@ -363,6 +424,7 @@ export class DropClient {
             transferId: message.transfer.id,
             accept: false,
           });
+
           return;
         }
       } else {
@@ -372,18 +434,22 @@ export class DropClient {
             type: "cancel",
             transferId: message.transfer.id,
           });
+
           return;
         }
+
         file = this.pendingOffer.file;
         clearTimeout(this.pendingOffer.timer);
         this.pendingOffer = undefined;
       }
+
       this.active = {
         transfer: message.transfer,
         file,
         ice: [],
         signalChain: Promise.resolve(),
       };
+
       this.patch({
         error: null,
         transfer: {
@@ -398,6 +464,7 @@ export class DropClient {
       message.transferId === this.active?.transfer.id
     ) {
       if (this.active.cancelling) return;
+
       try {
         this.startPeer(this.active, message.iceServers);
       } catch {
@@ -408,12 +475,12 @@ export class DropClient {
       message.transferId === this.active?.transfer.id
     ) {
       const active = this.active;
-      active.signalChain = active.signalChain
-        .then(() => this.handleSignal(active, message.signal))
-        .catch(() => {
-          if (this.active === active)
-            this.fail("Не удалось установить соединение между устройствами.");
-        });
+
+      this.queueSignal(
+        active,
+        () => this.handleSignal(active, message.signal),
+        "Не удалось установить соединение между устройствами.",
+      );
     } else if (
       message.type === "ended" &&
       message.transferId === this.state.transfer?.transfer.id
@@ -436,9 +503,27 @@ export class DropClient {
     }
   }
 
+  private queueSignal(
+    active: Active,
+    action: () => Promise<void>,
+    failure: string,
+  ) {
+    const previous = active.signalChain;
+
+    active.signalChain = (async () => {
+      try {
+        await previous;
+        await action();
+      } catch {
+        if (this.active === active) this.fail(failure);
+      }
+    })();
+  }
+
   private startPeer(active: Active, iceServers: IceServer[]) {
     if (active.peer) return;
     this.view({ phase: "connecting" });
+
     const peer = new RTCPeerConnection({
       iceServers,
       iceTransportPolicy:
@@ -446,13 +531,16 @@ export class DropClient {
           ? "relay"
           : "all",
     });
+
     active.peer = peer;
+
     active.timer = setTimeout(() => {
       if (this.active === active)
         this.fail(
           "Не удалось соединить устройства. Проверьте сеть и настройки TURN.",
         );
     }, CONNECT_TIMEOUT_MS);
+
     peer.onicecandidate = (event) => {
       if (event.candidate && this.active === active && !active.cancelling)
         this.send({
@@ -467,6 +555,7 @@ export class DropClient {
           },
         });
     };
+
     peer.onconnectionstatechange = () => {
       if (
         this.active === active &&
@@ -475,27 +564,31 @@ export class DropClient {
       )
         this.fail("Соединение потеряно. Повторите передачу с начала.");
     };
+
     if (active.file) {
       this.attachChannel(
         active,
         peer.createDataChannel("file", { ordered: true }),
       );
-      active.signalChain = active.signalChain
-        .then(async () => {
+
+      this.queueSignal(
+        active,
+        async () => {
           const offer = await peer.createOffer();
+
           if (this.active !== active || active.cancelling) return;
+          if (!offer.sdp) throw new Error("Missing offer SDP");
           await peer.setLocalDescription(offer);
+
           this.send({
             v: VERSION,
             type: "signal",
             transferId: active.transfer.id,
-            signal: { kind: "offer", sdp: offer.sdp! },
+            signal: { kind: "offer", sdp: offer.sdp },
           });
-        })
-        .catch(() => {
-          if (this.active === active)
-            this.fail("Не удалось создать предложение WebRTC.");
-        });
+        },
+        "Не удалось создать предложение WebRTC.",
+      );
     } else
       peer.ondatachannel = (event) => {
         if (
@@ -507,36 +600,48 @@ export class DropClient {
         ) {
           event.channel.close();
           this.fail("Некорректный файловый канал.");
+
           return;
         }
+
         this.attachChannel(active, event.channel);
       };
   }
+
   private async handleSignal(active: Active, signal: Signal) {
     if (this.active !== active || !active.peer || active.cancelling) return;
+
     const peer = active.peer;
+
     if (signal.kind === "ice") {
       if (peer.remoteDescription) await peer.addIceCandidate(signal.candidate);
       else active.ice.push(signal.candidate);
+
       return;
     }
+
     if ((signal.kind === "offer") === Boolean(active.file))
       throw new Error("Wrong signaling role");
     await peer.setRemoteDescription({ type: signal.kind, sdp: signal.sdp });
     for (const candidate of active.ice.splice(0))
       await peer.addIceCandidate(candidate);
+
     if (signal.kind === "offer") {
       const answer = await peer.createAnswer();
+
       if (this.active !== active || active.cancelling) return;
+      if (!answer.sdp) throw new Error("Missing answer SDP");
       await peer.setLocalDescription(answer);
+
       this.send({
         v: VERSION,
         type: "signal",
         transferId: active.transfer.id,
-        signal: { kind: "answer", sdp: answer.sdp! },
+        signal: { kind: "answer", sdp: answer.sdp },
       });
     }
   }
+
   private attachChannel(active: Active, channel: RTCDataChannel) {
     channel.addEventListener(
       "open",
@@ -547,6 +652,7 @@ export class DropClient {
       },
       { once: true },
     );
+
     active.channel = new FileChannel(
       channel,
       active.transfer.id,
@@ -557,6 +663,7 @@ export class DropClient {
       {
         progress: (bytes) => {
           if (this.active !== active) return;
+
           if (
             Date.now() - this.lastPaint > 80 ||
             bytes === active.transfer.file.size
@@ -568,18 +675,23 @@ export class DropClient {
         received: (blob) => {
           if (this.active !== active) return;
           this.discardReceived();
+
           const file = new File([blob], active.transfer.file.name, {
             type: blob.type,
           });
+
           let canShare = false;
+
           try {
             canShare = navigator.canShare?.({ files: [file] }) ?? false;
           } catch {
             /* Download remains available. */
           }
+
           this.patch({
             received: { file, url: URL.createObjectURL(blob), canShare },
           });
+
           // FileChannel sends ack after this callback. Delay signaling completion until then.
           queueMicrotask(() => {
             if (this.active === active) {
@@ -588,6 +700,7 @@ export class DropClient {
                 type: "complete",
                 transferId: active.transfer.id,
               });
+
               this.finishLocal("complete");
             }
           });
@@ -601,6 +714,7 @@ export class DropClient {
       },
     );
   }
+
   private fail(message: string) {
     if (this.active)
       this.send({
@@ -610,36 +724,45 @@ export class DropClient {
       });
     this.finishLocal("failed", message);
   }
+
   private finishLocal(reason: EndReason, message = reasonText[reason]) {
     const active = this.active;
+
     if (!active) return;
     this.active = undefined;
     clearTimeout(active.timer);
     active.channel?.dispose();
+
     if (active.peer) {
-      active.peer.onicecandidate =
-        active.peer.onconnectionstatechange =
-        active.peer.ondatachannel =
-          null;
+      active.peer.onicecandidate = null;
+      active.peer.onconnectionstatechange = null;
+      active.peer.ondatachannel = null;
+
       active.peer.close();
     }
+
     active.file = undefined;
     active.ice = [];
+
     this.view({
       phase: reason === "complete" ? "complete" : "ended",
       message,
       ...(reason === "complete" ? { bytes: active.transfer.file.size } : {}),
     });
   }
+
   private clearRequests() {
     if (this.pendingOffer) clearTimeout(this.pendingOffer.timer);
     this.pendingOffer = undefined;
+
     for (const lookup of this.lookups.values()) {
       clearTimeout(lookup.timer);
       lookup.reject(new Error("Соединение потеряно."));
     }
+
     this.lookups.clear();
   }
+
   dispose = () => {
     this.stopped = true;
     clearTimeout(this.retry);
@@ -647,12 +770,13 @@ export class DropClient {
     this.finishLocal("disconnected");
     this.clearRequests();
     this.discardReceived();
+
     if (this.socket) {
-      this.socket.onopen =
-        this.socket.onclose =
-        this.socket.onmessage =
-        this.socket.onerror =
-          null;
+      this.socket.onopen = null;
+      this.socket.onclose = null;
+      this.socket.onmessage = null;
+      this.socket.onerror = null;
+
       this.socket.close();
     }
   };

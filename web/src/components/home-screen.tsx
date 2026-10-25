@@ -4,62 +4,75 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatId, normalizeId } from "protocol";
 import {
+  type ChangeEvent,
+  type FormEvent,
   useLayoutEffect,
   useRef,
   useState,
-  type ChangeEvent,
-  type FormEvent,
 } from "react";
 import * as styles from "../app/page.css";
+import { bytesLabel } from "../lib/format";
+import { useSession } from "../lib/session-context";
 import { Icon } from "./icon";
-import { useSession } from "./session-provider";
-import { bytesLabel } from "./shell";
 
-export function HomeScreen() {
+export const HomeScreen = () => {
   const { state } = useSession();
   const [id, setId] = useState("");
   const [error, setError] = useState("");
   const recipientInput = useRef<HTMLInputElement>(null);
   const pendingCursor = useRef<number | null>(null);
   const router = useRouter();
+
   useLayoutEffect(() => {
     if (pendingCursor.current === null) return;
+
     recipientInput.current?.setSelectionRange(
       pendingCursor.current,
       pendingCursor.current,
     );
+
     pendingCursor.current = null;
   }, [id]);
 
-  function changeRecipient(event: ChangeEvent<HTMLInputElement>) {
+  const changeRecipient = (event: ChangeEvent<HTMLInputElement>) => {
     const { value: rawValue, selectionStart } = event.currentTarget;
     const value = rawValue.toUpperCase();
+
     const cursor = rawValue
       .slice(0, selectionStart ?? rawValue.length)
       .toUpperCase().length;
+
     const inputType = (event.nativeEvent as InputEvent).inputType;
+
     const deleting =
       inputType?.startsWith("delete") ||
       (!inputType && rawValue.length < id.length);
-    pendingCursor.current = value !== rawValue ? cursor : null;
+
+    pendingCursor.current = value === rawValue ? null : cursor;
+
     // Format insertions only, so deleting the separator never puts it back.
-    if (!deleting && /^[a-z0-9]{4,8}$/i.test(value)) {
+    if (!deleting && /^[\da-z]{4,8}$/iu.test(value)) {
       pendingCursor.current = cursor >= 4 ? cursor + 1 : cursor;
       setId(`${value.slice(0, 4)}-${value.slice(4)}`);
     } else {
       setId(value);
     }
-  }
+  };
 
-  function submit(event: FormEvent) {
+  const submit = (event: FormEvent) => {
     event.preventDefault();
+
     const normalized = normalizeId(id);
+
     if (!normalized) {
       setError("Введите ID из 8 символов, например K7M4-P9RX.");
+
       return;
     }
+
     router.push(`/send?id=${normalized}`);
-  }
+  };
+
   return (
     <>
       <section className={styles.hero}>
@@ -146,4 +159,4 @@ export function HomeScreen() {
       </section>
     </>
   );
-}
+};

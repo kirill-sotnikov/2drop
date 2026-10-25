@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { formatId, normalizeId } from "protocol";
-import { SubmitEventHandler, useEffect, useState } from "react";
+import { type SubmitEventHandler, useEffect, useState } from "react";
 import * as styles from "../app/page.css";
+import { bytesLabel } from "../lib/format";
+import { useSession } from "../lib/session-context";
 import { Icon } from "./icon";
-import { useSession } from "./session-provider";
-import { bytesLabel } from "./shell";
 
-export function SendScreen({ target }: { target: string }) {
+export const SendScreen = ({ target }: { readonly target: string }) => {
   const id = normalizeId(target);
   const { state, lookup, propose } = useSession();
   const [status, setStatus] = useState("Проверяем получателя…");
@@ -17,41 +17,43 @@ export function SendScreen({ target }: { target: string }) {
   const [check, setCheck] = useState(0);
 
   useEffect(() => {
-    if (!id || state.connection !== "online") return;
+    if (!id || state.connection !== "online") return undefined;
 
     let live = true;
     let inFlight = false;
 
-    const refresh = () => {
+    const refresh = async () => {
       if (inFlight) return;
       inFlight = true;
-      void lookup(id)
-        .then((result) => {
-          if (!live) return;
-          setAvailable(result === "available");
-          setStatus(
-            {
-              available: "Получатель доступен",
-              unavailable: "Получатель недоступен",
-              busy: "Получатель занят",
-              self: "Это ваш ID. Укажите ID другого устройства.",
-            }[result],
-          );
-        })
-        .catch((error: Error) => {
-          if (live) {
-            setAvailable(false);
-            setStatus(error.message);
-          }
-        })
-        .finally(() => {
-          inFlight = false;
-        });
+
+      try {
+        const result = await lookup(id);
+
+        if (!live) return;
+        setAvailable(result === "available");
+
+        setStatus(
+          {
+            available: "Получатель доступен",
+            unavailable: "Получатель недоступен",
+            busy: "Получатель занят",
+            self: "Это ваш ID. Укажите ID другого устройства.",
+          }[result],
+        );
+      } catch (error) {
+        if (live) {
+          setAvailable(false);
+          setStatus(error instanceof Error ? error.message : String(error));
+        }
+      } finally {
+        // eslint-disable-next-line require-atomic-updates -- The guard prevents overlapping refresh calls.
+        inFlight = false;
+      }
     };
 
     refresh();
 
-    const interval = setInterval(refresh, 5000);
+    const interval = setInterval(refresh, 5_000);
 
     return () => {
       live = false;
@@ -138,4 +140,4 @@ export function SendScreen({ target }: { target: string }) {
       </form>
     </>
   );
-}
+};

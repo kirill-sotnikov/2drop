@@ -15,6 +15,7 @@ node_modules
 
 #!.yarn/cache
 .pnp.*
+.eslintcache
 
 # Next.js and TypeScript generated files
 .next/

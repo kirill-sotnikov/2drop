@@ -3,30 +3,33 @@ import { z } from "zod";
 export const VERSION = 1;
 export const ID_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 export const DEFAULT_MAX_FILE_BYTES = 100_000_000;
-export const DEFAULT_CHUNK_BYTES = 16 * 1024;
-export const BUFFER_HIGH_BYTES = 1024 * 1024;
-export const BUFFER_LOW_BYTES = 256 * 1024;
+export const DEFAULT_CHUNK_BYTES = 16 * 1_024;
+export const BUFFER_HIGH_BYTES = 1_024 * 1_024;
+export const BUFFER_LOW_BYTES = 256 * 1_024;
 export const CONNECT_TIMEOUT_MS = 30_000;
 export const PROGRESS_TIMEOUT_MS = 30_000;
 
-export function normalizeId(input: string): string | null {
+export const normalizeId = (input: string): string | null => {
   const id = input.trim().replaceAll("-", "").toUpperCase();
-  return /^[2-9A-HJ-NP-Z]{8}$/.test(id) ? id : null;
-}
 
-export function formatId(id: string): string {
+  return /^[2-9A-HJ-NP-Z]{8}$/u.test(id) ? id : null;
+};
+
+export const formatId = (id: string): string => {
   return `${id.slice(0, 4)}-${id.slice(4)}`;
-}
+};
 
-export const idSchema = z.string().regex(/^[2-9A-HJ-NP-Z]{8}$/);
+export const idSchema = z.string().regex(/^[2-9A-HJ-NP-Z]{8}$/u);
+
 const uuid = z.uuid();
 const base = { v: z.literal(VERSION) };
+
 export const resumeSchema = z.object({
   id: idSchema,
-  secret: z.string().regex(/^[a-f0-9]{64}$/),
+  secret: z.string().regex(/^[\da-f]{64}$/u),
 });
 export const fileSchema = z.object({
-  name: z.string().min(1).max(1024),
+  name: z.string().min(1).max(1_024),
   size: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   mime: z.string().max(256),
 });
@@ -37,7 +40,7 @@ export const signalSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("ice"),
     candidate: z.object({
-      candidate: z.string().max(4096),
+      candidate: z.string().max(4_096),
       sdpMid: z.string().max(256).nullable().optional(),
       sdpMLineIndex: z.number().int().nonnegative().nullable().optional(),
       usernameFragment: z.string().max(256).nullable().optional(),

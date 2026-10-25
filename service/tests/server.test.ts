@@ -12,6 +12,7 @@ import {
 } from "protocol";
 import { WebSocket } from "ws";
 import { readConfig } from "../src/config.js";
+import { createLogger } from "../src/logger.js";
 import { createSignalingServer, makeTurnCredentials } from "../src/server.js";
 
 type OfType<T extends ServerMessage["type"]> = Extract<
@@ -98,7 +99,15 @@ const setup = async (
     ...overrides,
   });
 
-  const server = createSignalingServer(config, generateId);
+  const logs: Array<Record<string, unknown>> = [];
+
+  const logger = createLogger(config, {
+    write(line) {
+      logs.push(JSON.parse(line) as Record<string, unknown>);
+    },
+  });
+
+  const server = createSignalingServer(config, generateId, logger);
   const address = await server.listen();
 
   assert(address && typeof address !== "string");
@@ -115,7 +124,7 @@ const setup = async (
     return connection;
   };
 
-  return { server, origin, client };
+  return { server, origin, client, logs };
 };
 
 const offer = async (
@@ -186,6 +195,322 @@ test("health, unknown routes, and disallowed WebSocket origins", async (testCont
   const [error] = await once(ws, "error");
 
   assert.match(String(error), /403/u);
+});
+
+test("metrics expose process state, isolate server registries, and support bearer authentication", async (testContext) => {
+  const first = await setup(testContext, {
+    METRICS_TOKEN: "metrics-test-token",
+  });
+
+  const second = await setup(testContext);
+
+  for (const authorization of [
+    undefined,
+    "Bearer wrong",
+    "Basic metrics-test-token",
+  ]) {
+    const unauthorized = await fetch(first.origin + "/metrics", {
+      headers: authorization ? { Authorization: authorization } : {},
+    });
+
+    assert.equal(unauthorized.status, 401);
+    assert.equal(unauthorized.headers.get("www-authenticate"), "Bearer");
+    assert.equal(await unauthorized.text(), "");
+  }
+
+  const owner = await first.client();
+
+  await owner.hello();
+
+  const response = await fetch(first.origin + "/metrics", {
+    headers: { Authorization: "Bearer metrics-test-token" },
+  });
+
+  const body = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /text\/plain/u);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.match(body, /signaling_connections\{service="signaling"\} 1/u);
+  assert.match(body, /signaling_sessions\{service="signaling"\} 1/u);
+  assert.match(body, /process_resident_memory_bytes\{service="signaling"\} /u);
+  assert.match(body, /nodejs_eventloop_lag_seconds\{service="signaling"\} /u);
+
+  const otherBody = await (await fetch(second.origin + "/metrics")).text();
+
+  assert.match(
+    otherBody,
+    /signaling_connections_total\{service="signaling"\} 0/u,
+  );
+
+  assert.match(otherBody, /signaling_sessions\{service="signaling"\} 0/u);
+  assert.equal((await fetch(first.origin + "/health")).status, 200);
+
+  assert.equal(
+    (await fetch(first.origin + "/metrics", { method: "POST" })).status,
+    404,
+  );
+});
+
+test("transfer metrics and structured logs correlate events without recording payloads or secrets", async (testContext) => {
+  const { client, origin, logs } = await setup(testContext, {
+    TURN_URLS: "turn:turn.test:3478",
+    TURN_SECRET: "private-turn-secret",
+    APP_VERSION: "test-release",
+    NODE_ENV: "test",
+  });
+
+  const sender = await client();
+  const receiver = await client();
+  const senderSession = await sender.hello();
+  const receiverSession = await receiver.hello();
+  const requestId = randomUUID();
+
+  sender.send({
+    v: 1,
+    type: "propose",
+    requestId,
+    targetId: receiverSession.id,
+    senderName: "private-sender-name",
+    file: { name: "private-file-name.txt", size: 7, mime: "private-mime" },
+  });
+
+  const { transfer } = await sender.next("proposed");
+
+  await receiver.next("incoming");
+
+  assert.deepEqual(
+    new Set(Object.keys(transfer)),
+    new Set([
+      "expiresAt",
+      "file",
+      "id",
+      "receiverId",
+      "senderId",
+      "senderName",
+    ]),
+  );
+
+  const scrape = async () => (await fetch(origin + "/metrics")).text();
+
+  assert.match(
+    await scrape(),
+    /signaling_transfers\{stage="pending",service="signaling"\} 1/u,
+  );
+
+  receiver.send({
+    v: 1,
+    type: "decide",
+    transferId: transfer.id,
+    accept: true,
+  });
+
+  await sender.next("accepted");
+  await receiver.next("accepted");
+
+  assert.match(
+    await scrape(),
+    /signaling_transfers\{stage="accepted",service="signaling"\} 1/u,
+  );
+
+  sender.send({
+    v: 1,
+    type: "signal",
+    transferId: transfer.id,
+    signal: { kind: "offer", sdp: "private-sdp" },
+  });
+
+  await receiver.next("signal");
+
+  sender.send({
+    v: 1,
+    type: "signal",
+    transferId: transfer.id,
+    signal: { kind: "ice", candidate: { candidate: "private-ice-candidate" } },
+  });
+
+  await receiver.next("signal");
+  receiver.send({ v: 1, type: "complete", transferId: transfer.id });
+  await sender.next("ended");
+  await receiver.next("ended");
+
+  // A repeated terminal message is a protocol error, never a second completion.
+  receiver.send({ v: 1, type: "complete", transferId: transfer.id });
+  assert.equal((await receiver.next("error")).code, "unknown_transfer");
+  sender.socket.send(JSON.stringify({ v: 1, type: "private-unknown-message" }));
+  assert.equal((await sender.next("error")).code, "invalid_message");
+
+  const body = await scrape();
+
+  assert.match(
+    body,
+    /signaling_transfers_proposed_total\{service="signaling"\} 1/u,
+  );
+
+  assert.match(
+    body,
+    /signaling_transfers_accepted_total\{service="signaling"\} 1/u,
+  );
+
+  assert.match(
+    body,
+    /signaling_transfers_ended_total\{reason="complete",stage="accepted",service="signaling"\} 1/u,
+  );
+
+  assert.match(
+    body,
+    /signaling_transfer_duration_seconds_count\{service="signaling",reason="complete"\} 1/u,
+  );
+
+  assert.match(
+    body,
+    /signaling_transfers\{stage="accepted",service="signaling"\} 0/u,
+  );
+
+  assert.match(
+    body,
+    /signaling_transfers\{stage="pending",service="signaling"\} 0/u,
+  );
+
+  assert.match(
+    body,
+    /signaling_messages_received_total\{type="invalid",service="signaling"\} 1/u,
+  );
+
+  assert.match(
+    body,
+    /signaling_protocol_errors_total\{code="unknown_transfer",service="signaling"\} 1/u,
+  );
+
+  assert.equal(body.includes("private-unknown-message"), false);
+  assert.equal(body.includes(transfer.id), false);
+  assert.equal(body.includes(requestId), false);
+
+  const lifecycle = logs.filter(
+    (entry) =>
+      entry.transferId === transfer.id &&
+      String(entry.event).startsWith("transfer."),
+  );
+
+  assert.deepEqual(
+    lifecycle.map((entry) => entry.event),
+    ["transfer.proposed", "transfer.accepted", "transfer.ended"],
+  );
+
+  for (const entry of lifecycle) {
+    assert.equal(entry.requestId, requestId);
+    assert.equal(entry.senderSessionId, lifecycle[0].senderSessionId);
+    assert.equal(entry.receiverSessionId, lifecycle[0].receiverSessionId);
+  }
+
+  assert.equal(lifecycle[0].sessionId, lifecycle[0].senderSessionId);
+  assert.equal(lifecycle[1].sessionId, lifecycle[0].receiverSessionId);
+
+  assert.equal(
+    lifecycle[0].connectionId,
+    logs.find((entry) => entry.sessionId === lifecycle[0].senderSessionId)
+      ?.connectionId,
+  );
+
+  for (const entry of logs) {
+    assert.match(String(entry.eventId), /^[\da-f-]{36}$/u);
+    assert.equal(entry.service, "signaling");
+    assert.equal(entry.environment, "test");
+    assert.equal(entry.version, "test-release");
+    assert.equal(Number.isNaN(Date.parse(String(entry.time))), false);
+  }
+
+  assert.equal(new Set(logs.map((entry) => entry.eventId)).size, logs.length);
+
+  const output = JSON.stringify(logs);
+
+  for (const value of [
+    senderSession.id,
+    senderSession.secret,
+    receiverSession.id,
+    receiverSession.secret,
+    "private-turn-secret",
+    "private-sender-name",
+    "private-file-name.txt",
+    "private-mime",
+    "private-sdp",
+    "private-ice-candidate",
+    "private-unknown-message",
+    senderSession.iceServers[0]?.credential,
+  ]) {
+    assert(value);
+
+    assert.equal(
+      output.includes(value),
+      false,
+      `Unexpected sensitive value in logs: ${value}`,
+    );
+  }
+});
+
+test("rejected offers and disconnected transfers have separate outcomes and durations", async (testContext) => {
+  const { client, origin } = await setup(testContext);
+  const sender = await client();
+  const receiver = await client();
+
+  await sender.hello();
+
+  const session = await receiver.hello();
+  const rejected = await offer(sender, receiver, session.id);
+
+  receiver.send({
+    v: 1,
+    type: "decide",
+    transferId: rejected.id,
+    accept: false,
+  });
+
+  await sender.next("ended");
+  await receiver.next("ended");
+
+  const accepted = await offer(sender, receiver, session.id);
+
+  receiver.send({
+    v: 1,
+    type: "decide",
+    transferId: accepted.id,
+    accept: true,
+  });
+
+  await sender.next("accepted");
+  await receiver.next("accepted");
+  await receiver.disconnect();
+  assert.equal((await sender.next("ended")).reason, "disconnected");
+
+  const body = await (await fetch(origin + "/metrics")).text();
+
+  assert.match(
+    body,
+    /signaling_transfers_ended_total\{reason="rejected",stage="pending",service="signaling"\} 1/u,
+  );
+
+  assert.match(
+    body,
+    /signaling_transfers_ended_total\{reason="disconnected",stage="accepted",service="signaling"\} 1/u,
+  );
+
+  assert.match(
+    body,
+    /signaling_transfer_duration_seconds_count\{service="signaling",reason="disconnected"\} 1/u,
+  );
+
+  assert.doesNotMatch(
+    body,
+    /signaling_transfer_duration_seconds_count\{[^\n]*reason="rejected"/u,
+  );
+
+  assert.match(body, /signaling_connections\{service="signaling"\} 1/u);
+  assert.match(body, /signaling_sessions\{service="signaling"\} 2/u);
+
+  assert.match(
+    body,
+    /signaling_connection_duration_seconds_count\{service="signaling"\} 1/u,
+  );
 });
 
 test("session secrets, collision handling, exclusive ownership, recovery and expiry", async (testContext) => {

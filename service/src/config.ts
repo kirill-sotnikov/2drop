@@ -18,6 +18,12 @@ const schema = z.object({
   MAX_CONNECTIONS: positive(2_000),
   MAX_CONNECTIONS_PER_IP: positive(20),
   MAX_SESSIONS: positive(4_000),
+  LOG_LEVEL: z
+    .enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"])
+    .default("info"),
+  NODE_ENV: z.string().default("development"),
+  APP_VERSION: z.string().default("unknown"),
+  METRICS_TOKEN: z.string().default(""),
   ICE_SERVERS_JSON: z.string().default("[]"),
   TURN_URLS: z.string().default(""),
   TURN_SECRET: z.string().default(""),
@@ -60,6 +66,10 @@ export const readConfig = (environment: NodeJS.ProcessEnv = process.env) => {
     maxConnections: config.MAX_CONNECTIONS,
     maxConnectionsPerIp: config.MAX_CONNECTIONS_PER_IP,
     maxSessions: config.MAX_SESSIONS,
+    logLevel: config.LOG_LEVEL,
+    environment: config.NODE_ENV,
+    appVersion: config.APP_VERSION,
+    metricsToken: config.METRICS_TOKEN,
     iceServers,
     turnUrls,
     turnSecret: config.TURN_SECRET,

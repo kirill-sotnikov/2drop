@@ -29,7 +29,7 @@
     "concurrently": "^9.2.1",
     "eslint": "9.39.5",
     "eslint-config-canonical": "47.4.2",
-    "eslint-config-next": "16.4.0",
+    "eslint-config-next": "16.4.3",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-only-warn": "^1.1.0",
     "eslint-plugin-prettier": "^5.5.5",

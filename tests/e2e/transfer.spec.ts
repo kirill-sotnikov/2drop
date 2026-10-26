@@ -120,7 +120,9 @@ test("two browsers transfer binary and empty files with consent, exact bytes and
         buffer: payload,
       });
 
-      await sender.getByRole("button", { name: "Предложить передачу" }).click();
+      await sender
+        .getByRole("button", { name: "Отправить", exact: true })
+        .click();
 
       await expect(
         receiver.getByRole("button", { name: "Принять", exact: true }),
@@ -217,7 +219,9 @@ test("receiver can reject, sender can cancel mid-file, then retry from the start
       buffer: Buffer.alloc(200_000, 7),
     });
 
-    await sender.getByRole("button", { name: "Предложить передачу" }).click();
+    await sender
+      .getByRole("button", { name: "Отправить", exact: true })
+      .click();
 
     await receiver
       .getByRole("button", { name: "Отклонить", exact: true })
@@ -227,7 +231,9 @@ test("receiver can reject, sender can cancel mid-file, then retry from the start
       sender.getByText("Получатель отклонил передачу.", { exact: true }),
     ).toBeVisible();
 
-    await sender.getByRole("button", { name: "Предложить передачу" }).click();
+    await sender
+      .getByRole("button", { name: "Отправить", exact: true })
+      .click();
 
     await receiver
       .getByRole("button", { name: "Принять", exact: true })
@@ -244,7 +250,9 @@ test("receiver can reject, sender can cancel mid-file, then retry from the start
       receiver.getByRole("link", { name: "Скачать", exact: true }),
     ).toHaveCount(0);
 
-    await sender.getByRole("button", { name: "Предложить передачу" }).click();
+    await sender
+      .getByRole("button", { name: "Отправить", exact: true })
+      .click();
 
     await receiver
       .getByRole("button", { name: "Принять", exact: true })
@@ -322,7 +330,10 @@ test("text, image, archive, the 100 MB boundary and an oversized file", async ({
 
     for (const sample of samples) {
       await sender.getByLabel(/Один файл/u).setInputFiles(sample);
-      await sender.getByRole("button", { name: "Предложить передачу" }).click();
+
+      await sender
+        .getByRole("button", { name: "Отправить", exact: true })
+        .click();
 
       await receiver
         .getByRole("button", { name: "Принять", exact: true })
@@ -368,11 +379,14 @@ test("text, image, archive, the 100 MB boundary and an oversized file", async ({
     ).toBeVisible();
 
     await expect(
-      sender.getByRole("button", { name: "Предложить передачу" }),
+      sender.getByRole("button", { name: "Отправить", exact: true }),
     ).toBeDisabled();
 
     await sender.getByLabel(/Один файл/u).setInputFiles(boundaryPath);
-    await sender.getByRole("button", { name: "Предложить передачу" }).click();
+
+    await sender
+      .getByRole("button", { name: "Отправить", exact: true })
+      .click();
 
     await receiver
       .getByRole("button", { name: "Принять", exact: true })

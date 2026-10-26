@@ -1,6 +1,15 @@
 import { type CSSProperties } from "react";
 
-type IconName = "send" | "receive" | "qr" | "shield" | "arrow" | "file";
+type IconName =
+  | "send"
+  | "receive"
+  | "qr"
+  | "shield"
+  | "arrow"
+  | "file"
+  | "copy"
+  | "check"
+  | "refresh";
 
 export const Icon = ({
   name,
@@ -51,6 +60,19 @@ export const Icon = ({
         </>
       )}
       {name === "arrow" && <path d="m9 5 7 7-7 7" />}
+      {name === "check" && <path d="m5 12 4 4L19 6" />}
+      {name === "refresh" && (
+        <>
+          <path d="M20 7v5h-5" />
+          <path d="M19.5 12a7.5 7.5 0 1 0-2 5.5" />
+        </>
+      )}
+      {name === "copy" && (
+        <>
+          <rect x="8" y="8" width="12" height="13" rx="2" />
+          <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3" />
+        </>
+      )}
       {name === "file" && (
         <>
           <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z" />

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import * as styles from "../app/page.css";
 import { bytesLabel } from "../lib/format";
 import { useSession } from "../lib/session-context";
+import { Icon } from "./icon";
 
 export const ReceiveScreen = () => {
   const { state, decide, cancel } = useSession();
@@ -23,6 +24,14 @@ export const ReceiveScreen = () => {
   const file = transfer?.transfer.file ?? received?.file;
   const canvas = useRef<HTMLCanvasElement>(null);
   const [message, setMessage] = useState("");
+  const [copied, setCopied] = useState(false);
+  const copyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeout.current !== null) clearTimeout(copyTimeout.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!state.id || !canvas.current) return undefined;
@@ -60,7 +69,11 @@ export const ReceiveScreen = () => {
     try {
       await navigator.clipboard.writeText(state.id);
       setMessage("ID скопирован.");
+      setCopied(true);
+      if (copyTimeout.current !== null) clearTimeout(copyTimeout.current);
+      copyTimeout.current = setTimeout(() => setCopied(false), 1_000);
     } catch {
+      setCopied(false);
       setMessage("Скопируйте ID вручную.");
     }
   };
@@ -68,11 +81,9 @@ export const ReceiveScreen = () => {
   return (
     <>
       <section className={styles.card + " " + styles.receive}>
-        <span className={styles.eyebrow}>Получение</span>
-        <h1>Покажите этот код</h1>
-        <p className={styles.muted}>
-          Отправитель может открыть ссылку обычной камерой телефона или ввести
-          ваш ID.
+        <p className={styles.muted + " " + styles.receiveDescription}>
+          Для отправки файла отправитель может отсканировать QR код или ввести
+          ваш ID
         </p>
         {state.id && (
           <>
@@ -82,23 +93,24 @@ export const ReceiveScreen = () => {
               role="img"
               aria-label={`QR для отправки файла на ID ${formatId(state.id)}`}
             />
-            <p className={styles.bigId}>{formatId(state.id)}</p>
-            <button type="button" onClick={copy}>
-              Скопировать ID
-            </button>
+            <div className={styles.idRow}>
+              <span className={styles.idLabel}>Ваш ID</span>
+              <span className={styles.bigId}>{formatId(state.id)}</span>
+              <button
+                type="button"
+                className={styles.copyId}
+                onClick={copy}
+                aria-label="Скопировать ID"
+                title={message || "Скопировать ID"}
+              >
+                <Icon name={copied ? "check" : "copy"} size={20} />
+              </button>
+            </div>
+            <span className={styles.visuallyHidden} role="status">
+              {message}
+            </span>
           </>
         )}
-        <p aria-live="polite">
-          {message ||
-            (state.connection === "online"
-              ? transfer && transfer.phase !== "ended"
-                ? ""
-                : "Ожидаем предложение передачи…"
-              : "Подключаемся к серверу…")}
-        </p>
-        <p className={styles.muted}>
-          Содержимое файла начнёт передаваться только после нажатия «Принять».
-        </p>
       </section>
       {file && (transfer || received) && (
         <section

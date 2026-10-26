@@ -86,24 +86,28 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
         Назад
       </Link>
       <form className={styles.card} onSubmit={submit}>
-        <span className={styles.eyebrow}>Отправка</span>
-        <h1>Получатель {formatId(id)}</h1>
-        <p role="status">
-          {state.connection === "online"
-            ? status
-            : "Ожидаем соединения с сервером…"}
-        </p>
-        <button
-          type="button"
-          className={styles.textButton}
-          disabled={state.connection !== "online" || Boolean(busy)}
-          onClick={() => {
-            setAvailable(false);
-            setCheck((value) => value + 1);
-          }}
-        >
-          Проверить ещё раз
-        </button>
+        <h1 className={styles.recipientHeading}>Получатель {formatId(id)}</h1>
+        <div className={styles.recipientStatus} style={{ marginTop: 8 }}>
+          <p role="status">
+            {state.connection === "online"
+              ? status
+              : "Ожидаем соединения с сервером…"}
+          </p>
+          <button
+            type="button"
+            className={styles.refreshRecipient}
+            aria-label="Проверить ещё раз"
+            title="Проверить ещё раз"
+            style={{
+              minHeight: 22,
+              width: 22,
+            }}
+            disabled={state.connection !== "online" || Boolean(busy)}
+            onClick={() => setCheck((value) => value + 1)}
+          >
+            <Icon name="refresh" size={20} />
+          </button>
+        </div>
         {available && state.connection === "online" && (
           <>
             <label htmlFor="file">
@@ -129,12 +133,8 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
                 !file || file.size > state.maxFileBytes || Boolean(busy)
               }
             >
-              Предложить передачу →
+              Отправить
             </button>
-            <p className={styles.muted}>
-              Пока получатель не согласится, отправляются только имя и размер
-              файла.
-            </p>
           </>
         )}
       </form>

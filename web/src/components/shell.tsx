@@ -81,7 +81,6 @@ export const Shell = ({ children }: { readonly children: ReactNode }) => {
           aria-label="Текущая передача"
           aria-live="polite"
         >
-          <span className={styles.eyebrow}>Отправка</span>
           <h2 className={styles.fileName}>{transfer.transfer.file.name}</h2>
           <p className={styles.muted}>
             {bytesLabel(transfer.transfer.file.size)} · Получатель:{" "}
@@ -126,10 +125,7 @@ export const Shell = ({ children }: { readonly children: ReactNode }) => {
       )}
       <footer className={styles.footer}>
         <p>Без регистрации · Между устройствами</p>
-        <p>
-          Держите страницу открытой во время передачи. Лимит прототипа:{" "}
-          {bytesLabel(state.maxFileBytes)}.
-        </p>
+        <p>Держите страницу открытой во время передачи</p>
         <button
           type="button"
           className={styles.textButton}

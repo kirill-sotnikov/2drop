@@ -218,6 +218,9 @@ export const notice = style({
 export const receiveFile = style({
   maxWidth: 600,
   margin: "0 auto 24px",
+  "@media": {
+    "screen and (min-width: 768px)": { maxWidth: "100%" },
+  },
 });
 
 globalStyle(`${receiveFile} > :last-child`, { marginBottom: 0 });
@@ -226,6 +229,27 @@ export const receive = style({
   textAlign: "center",
   maxWidth: 600,
   margin: "0 auto 24px",
+  "@media": {
+    "screen and (min-width: 768px)": {
+      display: "grid",
+      gridTemplateColumns: "minmax(0, 1fr) auto",
+      gridTemplateAreas: '"description qr" "id qr"',
+      columnGap: 24,
+      alignContent: "center",
+      maxWidth: "100%",
+      textAlign: "left",
+    },
+  },
+});
+
+export const receiveDescription = style({
+  "@media": {
+    "screen and (min-width: 768px)": {
+      gridArea: "description",
+      alignSelf: "end",
+      margin: "0 0 16px",
+    },
+  },
 });
 
 export const qr = style({
@@ -237,14 +261,85 @@ export const qr = style({
   border: "10px solid white",
   boxSizing: "content-box",
   width: "min(256px, calc(100% - 20px))",
+  "@media": {
+    "screen and (min-width: 768px)": {
+      gridArea: "qr",
+      width: 256,
+      margin: 0,
+    },
+  },
+});
+
+export const idRow = style({
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "clamp(6px, 2vw, 12px)",
+  margin: "20px 0",
+  "@media": {
+    "screen and (min-width: 768px)": {
+      gridArea: "id",
+      alignSelf: "start",
+      justifyContent: "flex-start",
+      gap: 8,
+      margin: 0,
+    },
+  },
+});
+
+export const idLabel = style({
+  color: "#92a9ba",
+  fontSize: 14,
+  whiteSpace: "nowrap",
 });
 
 export const bigId = style({
   fontWeight: 650,
-  fontSize: "clamp(1.7rem, 6vw, 2.3rem)",
+  fontSize: "clamp(1.125rem, 5.5vw, 2.3rem)",
   fontVariantNumeric: "tabular-nums",
   letterSpacing: "0.06em",
-  margin: "20px 0",
+  whiteSpace: "nowrap",
+  "@media": {
+    "screen and (min-width: 768px)": { fontSize: 26 },
+  },
+});
+
+export const copyId = style({
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+  width: 44,
+  minHeight: 44,
+  padding: 0,
+  background: "transparent",
+  color: "#adc0cf",
+  ":hover": { color: "#f5f7fa" },
+});
+
+export const recipientHeading = style({ marginBottom: 0 });
+
+export const recipientStatus = style({
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  margin: "0 0 16px",
+});
+
+globalStyle(`${recipientStatus} > p`, { margin: 0 });
+
+export const refreshRecipient = style([copyId, { color: "#52b6f9" }]);
+
+export const visuallyHidden = style({
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clipPath: "inset(50%)",
+  whiteSpace: "nowrap",
+  border: 0,
 });
 
 export const fileName = style({ overflowWrap: "anywhere" });

@@ -9,13 +9,6 @@ import { bytesLabel } from "../lib/format";
 import { useSession } from "../lib/session-context";
 import { Icon } from "./icon";
 
-const connectionText = {
-  connecting: "Подключаемся…",
-  online: "Готов к передаче",
-  reconnecting: "Восстанавливаем соединение…",
-  error: "Нет соединения",
-};
-
 export const Shell = ({ children }: { readonly children: ReactNode }) => {
   const pathname = usePathname();
   const { state, cancel, rotate, clearError } = useSession();
@@ -38,12 +31,6 @@ export const Shell = ({ children }: { readonly children: ReactNode }) => {
             2drop<span className={styles.dot}>.</span>
           </span>
         </Link>
-        <span
-          className={styles.connection}
-          data-online={state.connection === "online"}
-        >
-          {connectionText[state.connection]}
-        </span>
       </header>
       <nav className={styles.nav} aria-label="Основная навигация">
         <Link

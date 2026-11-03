@@ -343,7 +343,10 @@ export const visuallyHidden = style({
   border: 0,
 });
 
-export const fileName = style({ overflowWrap: "anywhere" });
+export const fileName = style({
+  overflowWrap: "anywhere",
+  listStyle: "none",
+});
 
 export const success = style({ color: "#64d5ad", fontWeight: 600 });
 

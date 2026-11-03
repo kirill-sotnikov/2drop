@@ -5,10 +5,6 @@ import { open, readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 
 const getId = async (page: Page) => {
-  await expect(
-    page.getByText("Готов к передаче", { exact: true }),
-  ).toBeVisible();
-
   return page.evaluate(() => {
     const stored = JSON.parse(
       sessionStorage.getItem("2drop.session.v1") ?? "null",
@@ -200,7 +196,7 @@ test("seven selected files require one consent and download as one complete unco
       .click();
 
     await expect(
-      receiver.getByText("Все файлы получены. ZIP готов к скачиванию.", {
+      receiver.getByText("Все файлы получены. Архив готов к скачиванию.", {
         exact: true,
       }),
     ).toBeVisible();
@@ -274,7 +270,7 @@ test("seven selected files require one consent and download as one complete unco
     await sender.getByLabel(/Файлы до/u).setInputFiles(paths);
 
     await expect(
-      sender.getByText("Общий размер файлов превышает лимит прототипа.", {
+      sender.getByText("Общий размер файлов превышает лимит прототипа", {
         exact: true,
       }),
     ).toBeVisible();
@@ -638,7 +634,7 @@ test("text, image, archive, the 100 MB boundary and an oversized file", async ({
     await sender.getByLabel(/Файлы до/u).setInputFiles(oversizedPath);
 
     await expect(
-      sender.getByText("Общий размер файлов превышает лимит прототипа.", {
+      sender.getByText("Общий размер файлов превышает лимит прототипа", {
         exact: true,
       }),
     ).toBeVisible();

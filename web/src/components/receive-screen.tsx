@@ -132,14 +132,14 @@ export const ReceiveScreen = () => {
             <>
               <FileList files={files} />
               <p className={styles.muted}>
-                Все файлы будут сохранены одним ZIP.
+                Все файлы будут сохранены одним ZIP
               </p>
             </>
           )}
           {received && (
             <p className={styles.success}>
               {files.length > 1
-                ? "Все файлы получены. ZIP готов к скачиванию."
+                ? "Все файлы получены. Архив готов к скачиванию."
                 : "Файл получен. Теперь его можно сохранить."}
             </p>
           )}
@@ -181,7 +181,7 @@ export const ReceiveScreen = () => {
                   <span className={styles.spinner} aria-hidden="true" />
                   {transfer.phase === "transferring"
                     ? `${Math.round((transfer.bytes / (totalBytes || 1)) * 100)}%`
-                    : "Соединяемся…"}
+                    : "Соединяемся"}
                 </button>
                 <button
                   type="button"

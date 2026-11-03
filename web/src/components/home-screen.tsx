@@ -131,8 +131,8 @@ export const HomeScreen = () => {
       <section className={styles.banner}>
         <div>
           <h2 className={styles.bannerTitle}>
-            Между вами —<br />
-            только один клик.
+            Передача файлов
+            <br />в один клик
           </h2>
           <p className={styles.bannerDescription}>
             Фото, документы и архивы до {bytesLabel(state.maxFileBytes)}.

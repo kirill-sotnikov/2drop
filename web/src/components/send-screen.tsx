@@ -129,12 +129,10 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
         </div>
         {available && state.connection === "online" && (
           <>
-            <label htmlFor="file">
-              Файлы до {bytesLabel(state.maxFileBytes)} суммарно
-            </label>
             <input
               id="file"
               type="file"
+              style={{ marginBottom: 8 }}
               multiple
               disabled={Boolean(busy)}
               onChange={(event) =>
@@ -149,13 +147,13 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
                 <FileList files={files} />
                 {files.length > 1 && (
                   <p className={styles.muted}>
-                    Получатель скачает все файлы одним ZIP.
+                    Получатель получит все файлы одним ZIP
                   </p>
                 )}
               </>
             )}
             {totalBytes > state.maxFileBytes && (
-              <p role="alert">Общий размер файлов превышает лимит прототипа.</p>
+              <p role="alert">Общий размер файлов превышает лимит прототипа</p>
             )}
             {invalidFiles && (
               <p role="alert">
@@ -165,6 +163,7 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
             )}
             <button
               type="submit"
+              style={{ display: "block", marginTop: 16, marginLeft: "auto" }}
               disabled={
                 !files.length ||
                 invalidFiles ||

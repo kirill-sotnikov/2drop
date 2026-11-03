@@ -8,7 +8,7 @@ export const FileList = ({
 }: {
   readonly files: ReadonlyArray<Pick<FileMetadata, "name" | "size">>;
 }) => (
-  <ul aria-label="Список файлов">
+  <ul aria-label="Список файлов" style={{ paddingLeft: 16 }}>
     {archiveNames(files.map((file) => file.name)).map((name, index) => (
       <li key={name} className={styles.fileName}>
         {files[index].name} · {bytesLabel(files[index].size)}

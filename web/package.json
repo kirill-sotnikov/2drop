@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@vanilla-extract/css": "1.21.3",
+    "fflate": "^0.8.3",
     "next": "16.4.3",
     "protocol": "workspace:*",
     "qrcode": "^1.5.4",

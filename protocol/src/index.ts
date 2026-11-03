@@ -1,8 +1,10 @@
 import { z } from "zod";
 
-export const VERSION = 1;
+export const VERSION = 2;
 export const ID_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 export const DEFAULT_MAX_FILE_BYTES = 100_000_000;
+export const MAX_FILES_PER_TRANSFER = 100;
+export const MAX_MANIFEST_BYTES = 48 * 1_024;
 export const DEFAULT_CHUNK_BYTES = 16 * 1_024;
 export const BUFFER_HIGH_BYTES = 1_024 * 1_024;
 export const BUFFER_LOW_BYTES = 256 * 1_024;
@@ -34,6 +36,22 @@ export const fileSchema = z.object({
   mime: z.string().max(256),
 });
 export type FileMetadata = z.infer<typeof fileSchema>;
+export const totalFileBytes = (files: ReadonlyArray<{ size: number }>) =>
+  files.reduce((total, file) => total + file.size, 0);
+
+export const filesSchema = z
+  .array(fileSchema)
+  .min(1)
+  .max(MAX_FILES_PER_TRANSFER)
+  .refine(
+    (files) => Number.isSafeInteger(totalFileBytes(files)),
+    "Invalid total size",
+  )
+  // A UTF-16 code unit needs at most three UTF-8 bytes; leave room for the envelope.
+  .refine(
+    (files) => JSON.stringify(files).length <= MAX_MANIFEST_BYTES / 3,
+    "File list is too large",
+  );
 export const signalSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("offer"), sdp: z.string().min(1).max(48_000) }),
   z.object({ kind: z.literal("answer"), sdp: z.string().min(1).max(48_000) }),
@@ -66,7 +84,7 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("propose"),
     requestId: uuid,
     targetId: idSchema,
-    file: fileSchema,
+    files: filesSchema,
     senderName: z.string().trim().min(1).max(80),
   }),
   z.object({
@@ -109,7 +127,7 @@ export const transferSchema = z.object({
   senderId: idSchema,
   receiverId: idSchema,
   senderName: z.string().max(80),
-  file: fileSchema,
+  files: filesSchema,
   expiresAt: z.number(),
 });
 export type Transfer = z.infer<typeof transferSchema>;
@@ -173,4 +191,17 @@ export const channelMessageSchema = z.discriminatedUnion("type", [
   }),
   z.object({ ...base, type: z.literal("end"), transferId: uuid }),
   z.object({ ...base, type: z.literal("ack"), transferId: uuid }),
+  z.object({
+    ...base,
+    type: z.literal("file-start"),
+    transferId: uuid,
+    fileIndex: z.number().int().nonnegative(),
+    size: z.number().int().nonnegative(),
+  }),
+  z.object({
+    ...base,
+    type: z.literal("file-end"),
+    transferId: uuid,
+    fileIndex: z.number().int().nonnegative(),
+  }),
 ]);

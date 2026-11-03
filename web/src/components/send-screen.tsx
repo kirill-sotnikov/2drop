@@ -1,11 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { formatId, normalizeId } from "protocol";
+import {
+  filesSchema,
+  formatId,
+  MAX_FILES_PER_TRANSFER,
+  normalizeId,
+  totalFileBytes,
+} from "protocol";
 import { type SubmitEventHandler, useEffect, useState } from "react";
 import * as styles from "../app/page.css";
 import { bytesLabel } from "../lib/format";
 import { useSession } from "../lib/session-context";
+import { FileList } from "./file-list";
 import { Icon } from "./icon";
 
 export const SendScreen = ({ target }: { readonly target: string }) => {
@@ -13,7 +20,7 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
   const { state, lookup, propose } = useSession();
   const [status, setStatus] = useState("Проверяем получателя…");
   const [available, setAvailable] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [check, setCheck] = useState(0);
 
   useEffect(() => {
@@ -64,9 +71,21 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
   const busy =
     state.transfer && !["complete", "ended"].includes(state.transfer.phase);
 
+  const totalBytes = totalFileBytes(files);
+
+  const invalidFiles =
+    files.length > 0 &&
+    !filesSchema.safeParse(
+      files.map((file) => ({
+        name: file.name,
+        size: file.size,
+        mime: file.type,
+      })),
+    ).success;
+
   const submit: SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
-    if (id && file && state.id) propose(id, file, formatId(state.id));
+    if (id && files.length && state.id) propose(id, files, formatId(state.id));
   };
 
   if (!id) {
@@ -111,26 +130,46 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
         {available && state.connection === "online" && (
           <>
             <label htmlFor="file">
-              Один файл до {bytesLabel(state.maxFileBytes)}
+              Файлы до {bytesLabel(state.maxFileBytes)} суммарно
             </label>
             <input
               id="file"
               type="file"
+              multiple
               disabled={Boolean(busy)}
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              onChange={(event) =>
+                setFiles(Array.from(event.target.files ?? []))
+              }
             />
-            {file && (
-              <p className={styles.fileName}>
-                {file.name} · {bytesLabel(file.size)}
-              </p>
+            {files.length > 0 && (
+              <>
+                <p className={styles.muted}>
+                  Файлов: {files.length} · {bytesLabel(totalBytes)}
+                </p>
+                <FileList files={files} />
+                {files.length > 1 && (
+                  <p className={styles.muted}>
+                    Получатель скачает все файлы одним ZIP.
+                  </p>
+                )}
+              </>
             )}
-            {file && file.size > state.maxFileBytes && (
-              <p role="alert">Этот файл превышает лимит прототипа.</p>
+            {totalBytes > state.maxFileBytes && (
+              <p role="alert">Общий размер файлов превышает лимит прототипа.</p>
+            )}
+            {invalidFiles && (
+              <p role="alert">
+                Можно выбрать до {MAX_FILES_PER_TRANSFER} файлов. Сократите
+                список или длину имён.
+              </p>
             )}
             <button
               type="submit"
               disabled={
-                !file || file.size > state.maxFileBytes || Boolean(busy)
+                !files.length ||
+                invalidFiles ||
+                totalBytes > state.maxFileBytes ||
+                Boolean(busy)
               }
             >
               Отправить

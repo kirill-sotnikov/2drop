@@ -9,10 +9,284 @@ const getId = async (page: Page) => {
     page.getByText("Готов к передаче", { exact: true }),
   ).toBeVisible();
 
-  return (await page.locator("nav strong").innerText()).replaceAll("-", "");
+  return page.evaluate(() => {
+    const stored = JSON.parse(
+      sessionStorage.getItem("2drop.session.v1") ?? "null",
+    ) as { id: string };
+
+    return stored.id;
+  });
 };
 
 const hash = (data: Buffer) => createHash("sha256").update(data).digest("hex");
+
+// Read STORE entries independently of the browser's ZIP writer.
+const storedEntries = (zip: Buffer) => {
+  const end = zip.length - 22;
+
+  expect(zip.readUInt32LE(end)).toBe(0x06_05_4b_50);
+
+  const count = zip.readUInt16LE(end + 10);
+
+  let offset = zip.readUInt32LE(end + 16);
+
+  const entries: Array<{ name: string; bytes: Buffer }> = [];
+
+  for (let index = 0; index < count; index++) {
+    expect(zip.readUInt32LE(offset)).toBe(0x02_01_4b_50);
+    expect(zip.readUInt16LE(offset + 10)).toBe(0);
+
+    const nameLength = zip.readUInt16LE(offset + 28);
+
+    const name = zip
+      .subarray(offset + 46, offset + 46 + nameLength)
+      .toString("utf8");
+
+    const local = zip.readUInt32LE(offset + 42);
+
+    expect(zip.readUInt32LE(local)).toBe(0x04_03_4b_50);
+
+    const start =
+      local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
+
+    entries.push({
+      name,
+      bytes: zip.subarray(start, start + zip.readUInt32LE(offset + 24)),
+    });
+
+    offset +=
+      46 +
+      nameLength +
+      zip.readUInt16LE(offset + 30) +
+      zip.readUInt16LE(offset + 32);
+  }
+
+  return entries;
+};
+
+test("seven selected files require one consent and download as one complete uncompressed ZIP", async ({
+  browser,
+}, testInfo) => {
+  const receiverContext = await browser.newContext();
+  const senderContext = await browser.newContext();
+
+  try {
+    const receiver = await receiverContext.newPage();
+    const sender = await senderContext.newPage();
+
+    await receiver.goto("/receive");
+
+    const id = await getId(receiver);
+
+    await sender.addInitScript(() => {
+      const read = Blob.prototype.arrayBuffer;
+
+      Blob.prototype.arrayBuffer = async function () {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 80);
+        });
+
+        return read.call(this);
+      };
+    });
+
+    await sender.goto(`/send?id=${id}`);
+
+    const samples = [
+      {
+        name: "документ 📦.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.alloc(60_003, 11),
+      },
+      {
+        name: "same.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("first"),
+      },
+      {
+        name: "same.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("second"),
+      },
+      {
+        name: "same (1).txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("third"),
+      },
+      {
+        name: "empty.bin",
+        mimeType: "application/octet-stream",
+        buffer: Buffer.alloc(0),
+      },
+      {
+        name: "image.png",
+        mimeType: "image/png",
+        buffer: Buffer.from([0, 255, 1, 127]),
+      },
+      {
+        name: "data.json",
+        mimeType: "application/json",
+        buffer: Buffer.alloc(60_007, 22),
+      },
+    ];
+
+    await sender.getByLabel(/Файлы до/u).setInputFiles(samples);
+
+    await expect(sender.getByLabel(/Файлы до/u)).toHaveAttribute(
+      "multiple",
+      "",
+    );
+
+    await sender
+      .getByRole("button", { name: "Отправить", exact: true })
+      .click();
+
+    await expect(
+      receiver.getByRole("heading", { name: "Файлов: 7", exact: true }),
+    ).toBeVisible();
+
+    await expect(
+      receiver
+        .getByRole("list", { name: "Список файлов" })
+        .getByRole("listitem"),
+    ).toHaveCount(7);
+
+    await expect(
+      receiver.getByRole("link", { name: "Скачать", exact: true }),
+    ).toHaveCount(0);
+
+    await receiver
+      .getByRole("button", { name: "Отклонить", exact: true })
+      .click();
+
+    await expect(
+      sender.getByText("Получатель отклонил передачу", { exact: true }),
+    ).toBeVisible();
+
+    // Cancel after some bytes have arrived: no partial ZIP may be offered.
+    await sender
+      .getByRole("button", { name: "Отправить", exact: true })
+      .click();
+
+    await receiver
+      .getByRole("button", { name: "Принять", exact: true })
+      .click();
+
+    await expect(sender.getByRole("progressbar")).toBeVisible();
+
+    await expect(sender.getByRole("progressbar")).not.toHaveAttribute(
+      "value",
+      "0",
+    );
+
+    await sender
+      .getByRole("button", { name: "Отменить передачу", exact: true })
+      .click();
+
+    await expect(
+      receiver.getByText("Передача отменена", { exact: true }),
+    ).toBeVisible();
+
+    await expect(
+      receiver.getByRole("link", { name: "Скачать", exact: true }),
+    ).toHaveCount(0);
+
+    await sender
+      .getByRole("button", { name: "Отправить", exact: true })
+      .click();
+
+    await receiver
+      .getByRole("button", { name: "Принять", exact: true })
+      .click();
+
+    await expect(
+      receiver.getByText("Все файлы получены. ZIP готов к скачиванию.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    await expect(
+      sender.getByText("Все файлы получены получателем.", { exact: true }),
+    ).toBeVisible();
+
+    await expect(
+      receiver.getByRole("link", { name: "Скачать", exact: true }),
+    ).toHaveCount(1);
+
+    await expect(
+      receiver.getByRole("button", { name: /Поделиться/u }),
+    ).toHaveCount(0);
+
+    const downloadPromise = receiver.waitForEvent("download");
+
+    await receiver.getByRole("link", { name: "Скачать", exact: true }).click();
+
+    const download = await downloadPromise;
+
+    expect(download.suggestedFilename()).toBe("документ 📦.zip");
+    await download.saveAs(testInfo.outputPath(download.suggestedFilename()));
+
+    const path = await download.path();
+
+    assert(path);
+
+    const entries = storedEntries(await readFile(path));
+
+    expect(entries.map((entry) => entry.name)).toEqual([
+      "документ 📦.txt",
+      "same.txt",
+      "same (1).txt",
+      "same (1) (1).txt",
+      "empty.bin",
+      "image.png",
+      "data.json",
+    ]);
+
+    for (const [index, entry] of entries.entries())
+      expect(hash(entry.bytes)).toBe(hash(samples[index].buffer));
+
+    await receiver.setViewportSize({ width: 390, height: 844 });
+
+    expect(
+      await receiver.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+
+    await receiver.screenshot({
+      path: testInfo.outputPath("received-batch.png"),
+      fullPage: true,
+    });
+
+    // The limit applies to the sum, even when each file is individually allowed.
+    const paths = [testInfo.outputPath("a.bin"), testInfo.outputPath("b.bin")];
+
+    for (const [index, filePath] of paths.entries()) {
+      const handle = await open(filePath, "w");
+
+      try {
+        await handle.truncate(index === 0 ? 50_000_001 : 50_000_000);
+      } finally {
+        await handle.close();
+      }
+    }
+
+    await sender.getByLabel(/Файлы до/u).setInputFiles(paths);
+
+    await expect(
+      sender.getByText("Общий размер файлов превышает лимит прототипа.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    await expect(
+      sender.getByRole("button", { name: "Отправить", exact: true }),
+    ).toBeDisabled();
+  } finally {
+    await receiverContext.close();
+    await senderContext.close();
+  }
+});
 
 test("ID and socket survive client navigation and page reload; QR renders", async ({
   page,
@@ -38,10 +312,6 @@ test("ID and socket survive client navigation and page reload; QR renders", asyn
   await page.getByRole("link", { name: "Получить", exact: true }).click();
 
   await expect(
-    page.getByRole("heading", { name: "Покажите этот код" }),
-  ).toBeVisible();
-
-  await expect(
     page.getByRole("img", { name: /QR для отправки/u }),
   ).toHaveAttribute("width", "256");
 
@@ -64,9 +334,7 @@ test("ID and socket survive client navigation and page reload; QR renders", asyn
   expect(await getId(page)).toBe(id);
   await page.getByRole("button", { name: "Обновить мой ID" }).click();
 
-  await expect(page.locator("nav strong")).not.toHaveText(
-    `${id.slice(0, 4)}-${id.slice(4)}`,
-  );
+  await expect.poll(() => getId(page)).not.toBe(id);
 });
 
 test("two browsers transfer binary and empty files with consent, exact bytes and repeat use", async ({
@@ -114,7 +382,7 @@ test("two browsers transfer binary and empty files with consent, exact bytes and
       ],
       ["пустой.txt", Buffer.alloc(0)],
     ] as const) {
-      await sender.getByLabel(/Один файл/u).setInputFiles({
+      await sender.getByLabel(/Файлы до/u).setInputFiles({
         name,
         mimeType: "application/octet-stream",
         buffer: payload,
@@ -136,21 +404,20 @@ test("two browsers transfer binary and empty files with consent, exact bytes and
                 .fileReads,
           ),
         ).toBe(0);
-      await expect(sender.getByLabel(/Один файл/u)).toBeDisabled();
+      await expect(sender.getByLabel(/Файлы до/u)).toBeDisabled();
 
       await receiver
         .getByRole("button", { name: "Принять", exact: true })
         .click();
 
       await expect(
-        sender.getByText("Файл получен получателем.", { exact: true }),
+        sender.getByText("Файл передан успешно", { exact: true }),
       ).toBeVisible();
 
       await expect(
-        receiver.getByText(
-          "Файл получен приложением. Теперь его можно сохранить.",
-          { exact: true },
-        ),
+        receiver.getByText("Файл получен. Теперь его можно сохранить.", {
+          exact: true,
+        }),
       ).toBeVisible();
 
       const downloadPromise = receiver.waitForEvent("download");
@@ -168,10 +435,6 @@ test("two browsers transfer binary and empty files with consent, exact bytes and
       assert(path);
       assert(path);
       expect(hash(await readFile(path))).toBe(hash(payload));
-
-      await receiver
-        .getByRole("button", { name: "Удалить из приложения" })
-        .click();
 
       await expect(
         sender.getByText("Получатель доступен", { exact: true }),
@@ -213,7 +476,7 @@ test("receiver can reject, sender can cancel mid-file, then retry from the start
 
     await sender.goto(`/send?id=${id}`);
 
-    await sender.getByLabel(/Один файл/u).setInputFiles({
+    await sender.getByLabel(/Файлы до/u).setInputFiles({
       name: "cancel.bin",
       mimeType: "application/octet-stream",
       buffer: Buffer.alloc(200_000, 7),
@@ -228,7 +491,7 @@ test("receiver can reject, sender can cancel mid-file, then retry from the start
       .click();
 
     await expect(
-      sender.getByText("Получатель отклонил передачу.", { exact: true }),
+      sender.getByText("Получатель отклонил передачу", { exact: true }),
     ).toBeVisible();
 
     await sender
@@ -243,7 +506,7 @@ test("receiver can reject, sender can cancel mid-file, then retry from the start
     await sender.getByRole("button", { name: "Отменить передачу" }).click();
 
     await expect(
-      receiver.getByText("Передача отменена.", { exact: true }),
+      receiver.getByText("Передача отменена", { exact: true }),
     ).toBeVisible();
 
     await expect(
@@ -259,7 +522,7 @@ test("receiver can reject, sender can cancel mid-file, then retry from the start
       .click();
 
     await expect(
-      sender.getByText("Файл получен получателем.", { exact: true }),
+      sender.getByText("Файл передан успешно", { exact: true }),
     ).toBeVisible();
 
     await expect(
@@ -329,7 +592,7 @@ test("text, image, archive, the 100 MB boundary and an oversized file", async ({
     ];
 
     for (const sample of samples) {
-      await sender.getByLabel(/Один файл/u).setInputFiles(sample);
+      await sender.getByLabel(/Файлы до/u).setInputFiles(sample);
 
       await sender
         .getByRole("button", { name: "Отправить", exact: true })
@@ -340,7 +603,7 @@ test("text, image, archive, the 100 MB boundary and an oversized file", async ({
         .click();
 
       await expect(
-        sender.getByText("Файл получен получателем.", { exact: true }),
+        sender.getByText("Файл передан успешно", { exact: true }),
       ).toBeVisible();
 
       const sampleDownloadPromise = receiver.waitForEvent("download");
@@ -372,17 +635,19 @@ test("text, image, archive, the 100 MB boundary and an oversized file", async ({
       }
     }
 
-    await sender.getByLabel(/Один файл/u).setInputFiles(oversizedPath);
+    await sender.getByLabel(/Файлы до/u).setInputFiles(oversizedPath);
 
     await expect(
-      sender.getByText("Этот файл превышает лимит прототипа.", { exact: true }),
+      sender.getByText("Общий размер файлов превышает лимит прототипа.", {
+        exact: true,
+      }),
     ).toBeVisible();
 
     await expect(
       sender.getByRole("button", { name: "Отправить", exact: true }),
     ).toBeDisabled();
 
-    await sender.getByLabel(/Один файл/u).setInputFiles(boundaryPath);
+    await sender.getByLabel(/Файлы до/u).setInputFiles(boundaryPath);
 
     await sender
       .getByRole("button", { name: "Отправить", exact: true })
@@ -393,7 +658,7 @@ test("text, image, archive, the 100 MB boundary and an oversized file", async ({
       .click();
 
     await expect(
-      sender.getByText("Файл получен получателем.", { exact: true }),
+      sender.getByText("Файл передан успешно", { exact: true }),
     ).toBeVisible({ timeout: 60_000 });
 
     const downloadPromise = receiver.waitForEvent("download");

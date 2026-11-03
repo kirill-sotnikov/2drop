@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
+import { VERSION } from "protocol";
 import { type ClientState, DropClient, initialState } from "../src/lib/client";
 
 test("server cancellation wins when RTC failure is delivered first", () => {
@@ -67,7 +68,7 @@ test("server cancellation wins when RTC failure is delivered first", () => {
     socket.onopen?.();
 
     socket.receive({
-      v: 1,
+      v: VERSION,
       type: "session",
       id: "ABCDEFGH",
       secret: "a".repeat(64),
@@ -79,48 +80,48 @@ test("server cancellation wins when RTC failure is delivered first", () => {
     const id = randomUUID();
 
     socket.receive({
-      v: 1,
+      v: VERSION,
       type: "incoming",
       transfer: {
         id,
         senderId: "JKLMNPQR",
         receiverId: "ABCDEFGH",
         senderName: "Test",
-        file: { name: "file", size: 1, mime: "" },
+        files: [{ name: "file", size: 1, mime: "" }],
         expiresAt: Date.now() + 1_000,
       },
     });
 
     socket.receive({
-      v: 1,
+      v: VERSION,
       type: "accepted",
       transferId: id,
       iceServers: [],
     });
 
     assert.equal(state.transfer?.phase, "ended");
-    assert.notEqual(state.transfer?.message, "Передача отменена.");
+    assert.notEqual(state.transfer?.message, "Передача отменена");
 
     socket.receive({
-      v: 1,
+      v: VERSION,
       type: "ended",
       transferId: id,
       reason: "cancelled",
     });
 
-    assert.equal(state.transfer?.message, "Передача отменена.");
+    assert.equal(state.transfer?.message, "Передача отменена");
 
     const pending = randomUUID();
 
     socket.receive({
-      v: 1,
+      v: VERSION,
       type: "incoming",
       transfer: {
         id: pending,
         senderId: "JKLMNPQR",
         receiverId: "ABCDEFGH",
         senderName: "Test",
-        file: { name: "file", size: 1, mime: "" },
+        files: [{ name: "file", size: 1, mime: "" }],
         expiresAt: Date.now() + 1_000,
       },
     });
@@ -129,7 +130,7 @@ test("server cancellation wins when RTC failure is delivered first", () => {
     assert.equal(state.transfer?.phase, "cancelling");
 
     socket.receive({
-      v: 1,
+      v: VERSION,
       type: "accepted",
       transferId: pending,
       iceServers: [],
@@ -142,23 +143,23 @@ test("server cancellation wins when RTC failure is delivered first", () => {
     );
 
     socket.receive({
-      v: 1,
+      v: VERSION,
       type: "ended",
       transferId: pending,
       reason: "cancelled",
     });
 
     assert.equal(state.transfer?.phase, "ended");
-    assert.equal(state.transfer?.message, "Передача отменена.");
+    assert.equal(state.transfer?.message, "Передача отменена");
 
     socket.receive({
-      v: 1,
+      v: VERSION,
       type: "ended",
       transferId: randomUUID(),
       reason: "expired",
     });
 
-    assert.equal(state.transfer?.message, "Передача отменена.");
+    assert.equal(state.transfer?.message, "Передача отменена");
   } finally {
     client.dispose();
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { formatId } from "protocol";
+import { formatId, totalFileBytes } from "protocol";
 import { type ReactNode } from "react";
 import * as styles from "../app/page.css";
 import { bytesLabel } from "../lib/format";
@@ -20,6 +20,7 @@ export const Shell = ({ children }: { readonly children: ReactNode }) => {
   const pathname = usePathname();
   const { state, cancel, rotate, clearError } = useSession();
   const transfer = state.transfer;
+  const totalBytes = totalFileBytes(transfer?.transfer.files ?? []);
   const busy = transfer && !["complete", "ended"].includes(transfer.phase);
 
   const transferring =
@@ -81,9 +82,13 @@ export const Shell = ({ children }: { readonly children: ReactNode }) => {
           aria-label="Текущая передача"
           aria-live="polite"
         >
-          <h2 className={styles.fileName}>{transfer.transfer.file.name}</h2>
+          <h2 className={styles.fileName}>
+            {transfer.transfer.files.length === 1
+              ? transfer.transfer.files[0].name
+              : `Файлов: ${transfer.transfer.files.length}`}
+          </h2>
           <p className={styles.muted}>
-            {bytesLabel(transfer.transfer.file.size)} · Получатель:{" "}
+            {bytesLabel(totalBytes)} · Получатель:{" "}
             {formatId(transfer.transfer.receiverId)}
           </p>
           {transfer.phase === "offering" && (
@@ -95,20 +100,23 @@ export const Shell = ({ children }: { readonly children: ReactNode }) => {
             <>
               <progress
                 aria-label="Прогресс передачи"
-                max={transfer.transfer.file.size || 1}
+                max={totalBytes || 1}
                 value={transfer.bytes}
               />
               <p>
-                {bytesLabel(transfer.bytes)} /{" "}
-                {bytesLabel(transfer.transfer.file.size)}
-                {transfer.bytes === transfer.transfer.file.size
+                {bytesLabel(transfer.bytes)} / {bytesLabel(totalBytes)}
+                {transfer.bytes === totalBytes
                   ? " · Ожидаем подтверждения получения…"
                   : ""}
               </p>
             </>
           )}
           {transfer.phase === "complete" && (
-            <p className={styles.success}>Файл получен получателем.</p>
+            <p className={styles.success}>
+              {transfer.transfer.files.length === 1
+                ? "Файл передан успешно"
+                : "Все файлы получены получателем"}
+            </p>
           )}
           {transfer.phase === "ended" && <p>{transfer.message}</p>}
           {busy && (

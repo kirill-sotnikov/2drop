@@ -5,6 +5,8 @@ import { test, type TestContext } from "node:test";
 import {
   type ClientMessage,
   clientMessageSchema,
+  filesSchema,
+  MAX_FILES_PER_TRANSFER,
   normalizeId,
   type ServerMessage,
   type Transfer,
@@ -138,7 +140,7 @@ const offer = async (
     requestId: randomUUID(),
     targetId: receiverId,
     senderName: "Тест",
-    file: { name: "файл.bin", size: 7, mime: "application/octet-stream" },
+    files: [{ name: "файл.bin", size: 7, mime: "application/octet-stream" }],
   });
 
   const message = await sender.next("proposed");
@@ -163,15 +165,108 @@ test("ID normalization and runtime protocol validation", () => {
     assert.equal(normalizeId(invalid), null);
 
   assert.equal(
-    clientMessageSchema.safeParse({ v: 2, type: "hello" }).success,
+    clientMessageSchema.safeParse({ v: VERSION + 1, type: "hello" }).success,
     false,
   );
 
   assert.equal(
-    clientMessageSchema.safeParse({ v: 1, type: "propose", file: { size: -1 } })
+    clientMessageSchema.safeParse({
+      v: VERSION,
+      type: "propose",
+      files: [{ size: -1 }],
+    }).success,
+    false,
+  );
+});
+
+test("file manifests reject empty lists, excessive counts, unsafe totals and oversized metadata", () => {
+  const file = { name: "file", size: 1, mime: "" };
+
+  assert.equal(filesSchema.safeParse([]).success, false);
+
+  assert.equal(
+    filesSchema.safeParse(
+      Array.from({ length: MAX_FILES_PER_TRANSFER + 1 }, () => file),
+    ).success,
+    false,
+  );
+
+  assert.equal(
+    filesSchema.safeParse([{ ...file, size: Number.MAX_SAFE_INTEGER }, file])
       .success,
     false,
   );
+
+  assert.equal(
+    filesSchema.safeParse(
+      Array.from({ length: MAX_FILES_PER_TRANSFER }, () => ({
+        ...file,
+        name: "x".repeat(1_024),
+      })),
+    ).success,
+    false,
+  );
+});
+
+test("a batch is offered and accepted as one transfer and the server enforces its combined size", async (testContext) => {
+  const { client } = await setup(testContext, { MAX_FILE_BYTES: "7" });
+  const sender = await client();
+  const receiver = await client();
+
+  await sender.hello();
+
+  const session = await receiver.hello();
+
+  const propose = (sizes: number[]) =>
+    sender.send({
+      v: VERSION,
+      type: "propose",
+      requestId: randomUUID(),
+      targetId: session.id,
+      senderName: "Test",
+      files: sizes.map((size, index) => ({
+        name: `file-${index}`,
+        size,
+        mime: "",
+      })),
+    });
+
+  propose([4, 4]);
+  assert.equal((await sender.next("error")).code, "file_too_large");
+  propose([0, 3, 4]);
+
+  const { transfer } = await sender.next("proposed");
+
+  assert.deepEqual(
+    (await receiver.next("incoming")).transfer.files,
+    transfer.files,
+  );
+
+  assert.deepEqual(
+    transfer.files.map((file) => file.size),
+    [0, 3, 4],
+  );
+
+  sender.send({
+    v: VERSION,
+    type: "signal",
+    transferId: transfer.id,
+    signal: { kind: "offer", sdp: "v=0" },
+  });
+
+  assert.equal((await sender.next("error")).code, "consent_required");
+
+  receiver.send({
+    v: VERSION,
+    type: "decide",
+    transferId: transfer.id,
+    accept: true,
+  });
+
+  assert.equal((await sender.next("accepted")).transferId, transfer.id);
+  await receiver.next("accepted");
+  sender.send({ v: VERSION, type: "cancel", transferId: transfer.id });
+  assert.equal((await receiver.next("ended")).reason, "cancelled");
 });
 
 test("health, unknown routes, and disallowed WebSocket origins", async (testContext) => {
@@ -267,12 +362,12 @@ test("transfer metrics and structured logs correlate events without recording pa
   const requestId = randomUUID();
 
   sender.send({
-    v: 1,
+    v: VERSION,
     type: "propose",
     requestId,
     targetId: receiverSession.id,
     senderName: "private-sender-name",
-    file: { name: "private-file-name.txt", size: 7, mime: "private-mime" },
+    files: [{ name: "private-file-name.txt", size: 7, mime: "private-mime" }],
   });
 
   const { transfer } = await sender.next("proposed");
@@ -283,7 +378,7 @@ test("transfer metrics and structured logs correlate events without recording pa
     new Set(Object.keys(transfer)),
     new Set([
       "expiresAt",
-      "file",
+      "files",
       "id",
       "receiverId",
       "senderId",
@@ -299,7 +394,7 @@ test("transfer metrics and structured logs correlate events without recording pa
   );
 
   receiver.send({
-    v: 1,
+    v: VERSION,
     type: "decide",
     transferId: transfer.id,
     accept: true,
@@ -314,7 +409,7 @@ test("transfer metrics and structured logs correlate events without recording pa
   );
 
   sender.send({
-    v: 1,
+    v: VERSION,
     type: "signal",
     transferId: transfer.id,
     signal: { kind: "offer", sdp: "private-sdp" },
@@ -323,21 +418,25 @@ test("transfer metrics and structured logs correlate events without recording pa
   await receiver.next("signal");
 
   sender.send({
-    v: 1,
+    v: VERSION,
     type: "signal",
     transferId: transfer.id,
     signal: { kind: "ice", candidate: { candidate: "private-ice-candidate" } },
   });
 
   await receiver.next("signal");
-  receiver.send({ v: 1, type: "complete", transferId: transfer.id });
+  receiver.send({ v: VERSION, type: "complete", transferId: transfer.id });
   await sender.next("ended");
   await receiver.next("ended");
 
   // A repeated terminal message is a protocol error, never a second completion.
-  receiver.send({ v: 1, type: "complete", transferId: transfer.id });
+  receiver.send({ v: VERSION, type: "complete", transferId: transfer.id });
   assert.equal((await receiver.next("error")).code, "unknown_transfer");
-  sender.socket.send(JSON.stringify({ v: 1, type: "private-unknown-message" }));
+
+  sender.socket.send(
+    JSON.stringify({ v: VERSION, type: "private-unknown-message" }),
+  );
+
   assert.equal((await sender.next("error")).code, "invalid_message");
 
   const body = await scrape();
@@ -459,7 +558,7 @@ test("rejected offers and disconnected transfers have separate outcomes and dura
   const rejected = await offer(sender, receiver, session.id);
 
   receiver.send({
-    v: 1,
+    v: VERSION,
     type: "decide",
     transferId: rejected.id,
     accept: false,
@@ -471,7 +570,7 @@ test("rejected offers and disconnected transfers have separate outcomes and dura
   const accepted = await offer(sender, receiver, session.id);
 
   receiver.send({
-    v: 1,
+    v: VERSION,
     type: "decide",
     transferId: accepted.id,
     accept: true,
@@ -529,7 +628,7 @@ test("session secrets, collision handling, exclusive ownership, recovery and exp
   const stranger = await client();
 
   stranger.send({
-    v: 1,
+    v: VERSION,
     type: "hello",
     resume: { id: session.id, secret: "a".repeat(64) },
   });
@@ -537,7 +636,7 @@ test("session secrets, collision handling, exclusive ownership, recovery and exp
   assert.equal((await stranger.next("error")).code, "invalid_resume");
 
   stranger.send({
-    v: 1,
+    v: VERSION,
     type: "hello",
     resume: { id: session.id, secret: session.secret },
   });
@@ -561,7 +660,7 @@ test("session secrets, collision handling, exclusive ownership, recovery and exp
   const late = await client();
 
   late.send({
-    v: 1,
+    v: VERSION,
     type: "hello",
     resume: { id: session.id, secret: session.secret },
   });
@@ -576,10 +675,23 @@ test("lookup marks disconnected sessions unavailable and rejects self", async (t
   const sa = await a.hello();
   const sb = await b.hello();
 
-  a.send({ v: 1, type: "lookup", requestId: randomUUID(), targetId: sa.id });
+  a.send({
+    v: VERSION,
+    type: "lookup",
+    requestId: randomUUID(),
+    targetId: sa.id,
+  });
+
   assert.equal((await a.next("lookup")).status, "self");
   await b.disconnect();
-  a.send({ v: 1, type: "lookup", requestId: randomUUID(), targetId: sb.id });
+
+  a.send({
+    v: VERSION,
+    type: "lookup",
+    requestId: randomUUID(),
+    targetId: sb.id,
+  });
+
   assert.equal((await a.next("lookup")).status, "unavailable");
 });
 
@@ -599,7 +711,7 @@ test("consent, participant and role checks; accepted signaling and receiver comp
   const transfer = await offer(a, b, sb.id);
 
   a.send({
-    v: 1,
+    v: VERSION,
     type: "signal",
     transferId: transfer.id,
     signal: { kind: "offer", sdp: "v=0" },
@@ -608,21 +720,21 @@ test("consent, participant and role checks; accepted signaling and receiver comp
   assert.equal((await a.next("error")).code, "consent_required");
 
   attacker.send({
-    v: 1,
+    v: VERSION,
     type: "decide",
     transferId: transfer.id,
     accept: true,
   });
 
   assert.equal((await attacker.next("error")).code, "unknown_transfer");
-  a.send({ v: 1, type: "decide", transferId: transfer.id, accept: true });
+  a.send({ v: VERSION, type: "decide", transferId: transfer.id, accept: true });
   assert.equal((await a.next("error")).code, "invalid_state");
-  b.send({ v: 1, type: "decide", transferId: transfer.id, accept: true });
+  b.send({ v: VERSION, type: "decide", transferId: transfer.id, accept: true });
   await a.next("accepted");
   await b.next("accepted");
 
   b.send({
-    v: 1,
+    v: VERSION,
     type: "signal",
     transferId: transfer.id,
     signal: { kind: "offer", sdp: "v=0" },
@@ -631,7 +743,7 @@ test("consent, participant and role checks; accepted signaling and receiver comp
   assert.equal((await b.next("error")).code, "invalid_state");
 
   a.send({
-    v: 1,
+    v: VERSION,
     type: "signal",
     transferId: transfer.id,
     signal: { kind: "offer", sdp: "v=0" },
@@ -640,19 +752,19 @@ test("consent, participant and role checks; accepted signaling and receiver comp
   assert.equal((await b.next("signal")).signal.kind, "offer");
 
   b.send({
-    v: 1,
+    v: VERSION,
     type: "signal",
     transferId: transfer.id,
     signal: { kind: "answer", sdp: "v=0" },
   });
 
   assert.equal((await a.next("signal")).signal.kind, "answer");
-  a.send({ v: 1, type: "complete", transferId: transfer.id });
+  a.send({ v: VERSION, type: "complete", transferId: transfer.id });
   assert.equal((await a.next("error")).code, "unauthorized");
-  b.send({ v: 1, type: "complete", transferId: transfer.id });
+  b.send({ v: VERSION, type: "complete", transferId: transfer.id });
   assert.equal((await a.next("ended")).reason, "complete");
   assert.equal((await b.next("ended")).reason, "complete");
-  b.send({ v: 1, type: "decide", transferId: transfer.id, accept: true });
+  b.send({ v: VERSION, type: "decide", transferId: transfer.id, accept: true });
   assert.equal((await b.next("error")).code, "unknown_transfer");
 });
 
@@ -672,17 +784,17 @@ test("only one accepted file; competing offers end; rejection permits a new offe
   const first = await offer(a, b, sb.id);
   const second = await offer(thirdClient, b, sb.id);
 
-  b.send({ v: 1, type: "decide", transferId: first.id, accept: true });
+  b.send({ v: VERSION, type: "decide", transferId: first.id, accept: true });
   await b.next("accepted");
   assert.equal((await thirdClient.next("ended")).reason, "busy");
   assert.equal((await b.next("ended")).transferId, second.id);
-  a.send({ v: 1, type: "cancel", transferId: first.id });
+  a.send({ v: VERSION, type: "cancel", transferId: first.id });
   await a.next("ended");
   await b.next("ended");
 
   const next = await offer(thirdClient, b, sb.id);
 
-  b.send({ v: 1, type: "decide", transferId: next.id, accept: false });
+  b.send({ v: VERSION, type: "decide", transferId: next.id, accept: false });
   assert.equal((await thirdClient.next("ended")).reason, "rejected");
   await b.next("ended");
   await offer(a, b, sb.id);
@@ -702,13 +814,20 @@ test("offer expiry and refresh invalidate invitations", async (testContext) => {
   assert.equal((await a.next("ended")).reason, "expired");
   await b.next("ended");
   await offer(a, b, sb.id);
-  b.send({ v: 1, type: "rotate" });
+  b.send({ v: VERSION, type: "rotate" });
 
   const changed = await b.next("session");
 
   assert.notEqual(changed.id, sb.id);
   assert.equal((await a.next("ended")).reason, "rotated");
-  a.send({ v: 1, type: "lookup", requestId: randomUUID(), targetId: sb.id });
+
+  a.send({
+    v: VERSION,
+    type: "lookup",
+    requestId: randomUUID(),
+    targetId: sb.id,
+  });
+
   assert.equal((await a.next("lookup")).status, "unavailable");
 });
 
@@ -723,24 +842,29 @@ test("disconnect aborts accepted transfer; file size and lookup rate limits enfo
   const sb = await b.hello();
 
   a.send({
-    v: 1,
+    v: VERSION,
     type: "propose",
     requestId: randomUUID(),
     targetId: sb.id,
     senderName: "a",
-    file: { name: "large", size: 8, mime: "" },
+    files: [{ name: "large", size: 8, mime: "" }],
   });
 
   assert.equal((await a.next("error")).code, "file_too_large");
 
   const transfer = await offer(a, b, sb.id);
 
-  b.send({ v: 1, type: "decide", transferId: transfer.id, accept: true });
+  b.send({ v: VERSION, type: "decide", transferId: transfer.id, accept: true });
   await a.next("accepted");
   await b.disconnect();
   assert.equal((await a.next("ended")).reason, "disconnected");
   for (let index = 0; index < 61; index++)
-    a.send({ v: 1, type: "lookup", requestId: randomUUID(), targetId: sb.id });
+    a.send({
+      v: VERSION,
+      type: "lookup",
+      requestId: randomUUID(),
+      targetId: sb.id,
+    });
   assert.equal((await a.next("error")).code, "rate_limited");
 });
 
@@ -773,7 +897,7 @@ test("restarting signaling invalidates previous session credentials", async (tes
   const restored = await second.client();
 
   restored.send({
-    v: 1,
+    v: VERSION,
     type: "hello",
     resume: { id: session.id, secret: session.secret },
   });

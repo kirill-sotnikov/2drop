@@ -14,6 +14,7 @@ import {
   type IceServer,
   ID_ALPHABET,
   type ServerMessage,
+  totalFileBytes,
   type Transfer,
   VERSION,
 } from "protocol";
@@ -60,7 +61,7 @@ const publicTransfer = (transfer: PendingTransfer): Transfer => ({
   senderId: transfer.senderId,
   receiverId: transfer.receiverId,
   senderName: transfer.senderName,
-  file: transfer.file,
+  files: transfer.files,
   expiresAt: transfer.expiresAt,
 });
 
@@ -448,7 +449,7 @@ export const createSignalingServer = (
       return;
     }
 
-    if (message.file.size > config.maxFileBytes) {
+    if (totalFileBytes(message.files) > config.maxFileBytes) {
       error(socket, "file_too_large", requestId);
 
       return;
@@ -473,7 +474,7 @@ export const createSignalingServer = (
       senderId: session.id,
       receiverId: target.id,
       senderName: message.senderName,
-      file: message.file,
+      files: message.files,
       expiresAt: Date.now() + config.offerTimeoutMs,
       accepted: false,
       offered: false,

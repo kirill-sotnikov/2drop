@@ -3,11 +3,13 @@ import {
   CONNECT_TIMEOUT_MS,
   DEFAULT_MAX_FILE_BYTES,
   type EndReason,
+  filesSchema,
   type IceServer,
   resumeSchema,
   type ServerMessage,
   serverMessageSchema,
   type Signal,
+  totalFileBytes,
   type Transfer,
   VERSION,
 } from "protocol";
@@ -33,7 +35,7 @@ export interface ClientState {
   id: string | null;
   maxFileBytes: number;
   transfer: TransferView | null;
-  received: { url: string; file: File; canShare: boolean } | null;
+  received: { url: string; file: File; files: Transfer["files"] } | null;
   error: string | null;
 }
 
@@ -47,7 +49,7 @@ export const initialState: ClientState = {
 };
 
 export const reasonText: Record<EndReason, string> = {
-  complete: "Файл получен получателем",
+  complete: "Файл передан успешно",
   rejected: "Получатель отклонил передачу",
   cancelled: "Передача отменена",
   expired: "Время ожидания истекло",
@@ -62,7 +64,7 @@ const errors: Record<string, string> = {
   busy: "Участник занят другой передачей",
   self: "Укажите ID другого устройства",
   rate_limited: "Слишком много запросов. Подождите минуту.",
-  file_too_large: "Файл превышает допустимый размер",
+  file_too_large: "Файлы превышают допустимый общий размер",
   capacity: "Сервис занят. Повторите попытку позже.",
   session_in_use:
     "Эта сессия уже открыта. Ожидаем отключения предыдущего соединения.",
@@ -72,7 +74,7 @@ type LookupStatus = "available" | "unavailable" | "busy" | "self";
 
 interface Active {
   transfer: Transfer;
-  file?: File;
+  files?: File[];
   peer?: RTCPeerConnection;
   channel?: FileChannel;
   ice: RTCIceCandidateInit[];
@@ -100,7 +102,7 @@ export class DropClient {
 
   private pendingOffer?: {
     requestId: string;
-    file: File;
+    files: File[];
     timer: ReturnType<typeof setTimeout>;
   };
 
@@ -242,10 +244,22 @@ export class DropClient {
       }
     });
 
-  propose = (targetId: string, file: File, senderName: string) => {
+  propose = (targetId: string, files: File[], senderName: string) => {
     if (this.active || this.pendingOffer) return;
 
-    if (file.size > this.state.maxFileBytes) {
+    const metadata = files.map((file) => ({
+      name: file.name,
+      size: file.size,
+      mime: file.type,
+    }));
+
+    if (!filesSchema.safeParse(metadata).success) {
+      this.patch({ error: "Некорректный или слишком большой список файлов." });
+
+      return;
+    }
+
+    if (totalFileBytes(files) > this.state.maxFileBytes) {
       this.patch({ error: errors.file_too_large });
 
       return;
@@ -263,7 +277,7 @@ export class DropClient {
       this.socket?.close();
     }, 8_000);
 
-    this.pendingOffer = { requestId, file, timer };
+    this.pendingOffer = { requestId, files: [...files], timer };
     this.patch({ error: null, transfer: null });
 
     if (
@@ -272,7 +286,7 @@ export class DropClient {
         type: "propose",
         requestId,
         targetId,
-        file: { name: file.name, size: file.size, mime: file.type },
+        files: metadata,
         senderName: senderName.trim() || "Отправитель",
       })
     ) {
@@ -286,6 +300,14 @@ export class DropClient {
     if (!this.active || this.state.transfer?.phase !== "incoming") return;
 
     if (accept) {
+      if (
+        totalFileBytes(this.active.transfer.files) > this.state.maxFileBytes
+      ) {
+        this.patch({ error: errors.file_too_large });
+
+        return;
+      }
+
       this.discardReceived();
       this.view({ phase: "connecting" });
     }
@@ -414,7 +436,7 @@ export class DropClient {
         lookup.resolve(message.status);
       }
     } else if (message.type === "incoming" || message.type === "proposed") {
-      let file: File | undefined;
+      let files: File[] | undefined;
 
       if (message.type === "incoming") {
         if (this.active || this.pendingOffer) {
@@ -438,14 +460,14 @@ export class DropClient {
           return;
         }
 
-        file = this.pendingOffer.file;
+        files = this.pendingOffer.files;
         clearTimeout(this.pendingOffer.timer);
         this.pendingOffer = undefined;
       }
 
       this.active = {
         transfer: message.transfer,
-        file,
+        files,
         ice: [],
         signalChain: Promise.resolve(),
       };
@@ -454,8 +476,8 @@ export class DropClient {
         error: null,
         transfer: {
           transfer: message.transfer,
-          direction: file ? "send" : "receive",
-          phase: file ? "offering" : "incoming",
+          direction: files ? "send" : "receive",
+          phase: files ? "offering" : "incoming",
           bytes: 0,
         },
       });
@@ -496,7 +518,7 @@ export class DropClient {
           phase: message.reason === "complete" ? "complete" : "ended",
           message: reasonText[message.reason],
           ...(message.reason === "complete"
-            ? { bytes: this.state.transfer.transfer.file.size }
+            ? { bytes: totalFileBytes(this.state.transfer.transfer.files) }
             : {}),
         });
       }
@@ -565,7 +587,7 @@ export class DropClient {
         this.fail("Соединение потеряно. Повторите передачу с начала.");
     };
 
-    if (active.file) {
+    if (active.files) {
       this.attachChannel(
         active,
         peer.createDataChannel("file", { ordered: true }),
@@ -620,7 +642,7 @@ export class DropClient {
       return;
     }
 
-    if ((signal.kind === "offer") === Boolean(active.file))
+    if ((signal.kind === "offer") === Boolean(active.files))
       throw new Error("Wrong signaling role");
     await peer.setRemoteDescription({ type: signal.kind, sdp: signal.sdp });
     for (const candidate of active.ice.splice(0))
@@ -656,17 +678,17 @@ export class DropClient {
     active.channel = new FileChannel(
       channel,
       active.transfer.id,
-      active.transfer.file,
+      active.transfer.files,
       this.state.maxFileBytes,
       () => active.peer?.sctp?.maxMessageSize ?? 0,
-      active.file,
+      active.files,
       {
         progress: (bytes) => {
           if (this.active !== active) return;
 
           if (
             Date.now() - this.lastPaint > 80 ||
-            bytes === active.transfer.file.size
+            bytes === totalFileBytes(active.transfer.files)
           ) {
             this.lastPaint = Date.now();
             this.view({ bytes });
@@ -676,20 +698,24 @@ export class DropClient {
           if (this.active !== active) return;
           this.discardReceived();
 
-          const file = new File([blob], active.transfer.file.name, {
+          const firstName = active.transfer.files[0].name;
+          const extensionIndex = firstName.lastIndexOf(".");
+
+          const downloadName =
+            active.transfer.files.length > 1
+              ? `${extensionIndex > 0 ? firstName.slice(0, extensionIndex) : firstName}.zip`
+              : firstName;
+
+          const file = new File([blob], downloadName, {
             type: blob.type,
           });
 
-          let canShare = false;
-
-          try {
-            canShare = navigator.canShare?.({ files: [file] }) ?? false;
-          } catch {
-            /* Download remains available. */
-          }
-
           this.patch({
-            received: { file, url: URL.createObjectURL(blob), canShare },
+            received: {
+              file,
+              url: URL.createObjectURL(blob),
+              files: active.transfer.files,
+            },
           });
 
           // FileChannel sends ack after this callback. Delay signaling completion until then.
@@ -741,13 +767,15 @@ export class DropClient {
       active.peer.close();
     }
 
-    active.file = undefined;
+    active.files = undefined;
     active.ice = [];
 
     this.view({
       phase: reason === "complete" ? "complete" : "ended",
       message,
-      ...(reason === "complete" ? { bytes: active.transfer.file.size } : {}),
+      ...(reason === "complete"
+        ? { bytes: totalFileBytes(active.transfer.files) }
+        : {}),
     });
   }
 

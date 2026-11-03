@@ -1,11 +1,12 @@
 "use client";
 
-import { formatId } from "protocol";
+import { formatId, totalFileBytes } from "protocol";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import * as styles from "../app/page.css";
 import { bytesLabel } from "../lib/format";
 import { useSession } from "../lib/session-context";
+import { FileList } from "./file-list";
 import { Icon } from "./icon";
 
 export const ReceiveScreen = () => {
@@ -21,7 +22,8 @@ export const ReceiveScreen = () => {
   const received =
     !transfer || transfer.phase === "complete" ? state.received : null;
 
-  const file = transfer?.transfer.file ?? received?.file;
+  const files = transfer?.transfer.files ?? received?.files;
+  const totalBytes = totalFileBytes(files ?? []);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState(false);
@@ -82,7 +84,7 @@ export const ReceiveScreen = () => {
     <>
       <section className={styles.card + " " + styles.receive}>
         <p className={styles.muted + " " + styles.receiveDescription}>
-          Для отправки файла отправитель может отсканировать QR код или ввести
+          Для отправки файлов отправитель может отсканировать QR код или ввести
           ваш ID
         </p>
         {state.id && (
@@ -112,18 +114,35 @@ export const ReceiveScreen = () => {
           </>
         )}
       </section>
-      {file && (transfer || received) && (
+      {files && (transfer || received) && (
         <section
           className={styles.card + " " + styles.receiveFile}
-          aria-label="Получение файла"
+          aria-label="Получение файлов"
           aria-live="polite"
         >
-          <h2 className={styles.fileName}>{file.name}</h2>
+          <h2 className={styles.fileName}>
+            {files.length === 1 ? files[0].name : `Файлов: ${files.length}`}
+          </h2>
           <p className={styles.muted}>
-            {bytesLabel(file.size)}
+            {bytesLabel(totalBytes)}
             {transfer &&
               ` · Отправитель: ${formatId(transfer.transfer.senderId)}`}
           </p>
+          {files.length > 1 && (
+            <>
+              <FileList files={files} />
+              <p className={styles.muted}>
+                Все файлы будут сохранены одним ZIP.
+              </p>
+            </>
+          )}
+          {received && (
+            <p className={styles.success}>
+              {files.length > 1
+                ? "Все файлы получены. ZIP готов к скачиванию."
+                : "Файл получен. Теперь его можно сохранить."}
+            </p>
+          )}
           <div className={styles.actions}>
             {received ? (
               <a
@@ -157,11 +176,11 @@ export const ReceiveScreen = () => {
                   className={styles.loadingButton}
                   disabled
                   aria-busy="true"
-                  aria-label="Получаем файл"
+                  aria-label="Получаем файлы"
                 >
                   <span className={styles.spinner} aria-hidden="true" />
                   {transfer.phase === "transferring"
-                    ? `${Math.round((transfer.bytes / (file.size || 1)) * 100)}%`
+                    ? `${Math.round((transfer.bytes / (totalBytes || 1)) * 100)}%`
                     : "Соединяемся…"}
                 </button>
                 <button

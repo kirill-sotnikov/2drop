@@ -324,6 +324,7 @@ export const recipientStatus = style({
   alignItems: "center",
   gap: 6,
   margin: "0 0 16px",
+  selectors: { "&:last-child": { marginBottom: 0 } },
 });
 
 globalStyle(`${recipientStatus} > p`, { margin: 0 });

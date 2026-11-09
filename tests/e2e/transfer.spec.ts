@@ -126,12 +126,30 @@ test("seven selected files require one consent and download as one complete unco
       },
     ];
 
-    await sender.getByLabel(/Файлы до/u).setInputFiles(samples);
+    const fileInput = sender.getByLabel(/Файлы до/u);
 
-    await expect(sender.getByLabel(/Файлы до/u)).toHaveAttribute(
-      "multiple",
-      "",
-    );
+    const senderFiles = sender
+      .getByRole("list", { name: "Список файлов" })
+      .getByRole("listitem");
+
+    const senderShowFiles = sender.getByRole("button", {
+      name: "Ещё 2 файла",
+      exact: true,
+    });
+
+    await fileInput.setInputFiles(samples.slice(0, 5));
+    await expect(senderFiles).toHaveCount(5);
+    await expect(senderShowFiles).toHaveCount(0);
+
+    await fileInput.setInputFiles(samples);
+    await expect(fileInput).toHaveAttribute("multiple", "");
+    await expect(senderFiles).toHaveCount(5);
+    await expect(senderFiles.last()).toContainText("empty.bin");
+    await senderShowFiles.click();
+    await expect(senderFiles).toHaveCount(7);
+    await expect(senderFiles.last()).toContainText("data.json");
+    await sender.getByRole("button", { name: "Свернуть", exact: true }).click();
+    await expect(senderFiles).toHaveCount(5);
 
     await sender
       .getByRole("button", { name: "Отправить", exact: true })
@@ -141,15 +159,24 @@ test("seven selected files require one consent and download as one complete unco
       receiver.getByRole("heading", { name: "Файлов: 7", exact: true }),
     ).toBeVisible();
 
-    await expect(
-      receiver
-        .getByRole("list", { name: "Список файлов" })
-        .getByRole("listitem"),
-    ).toHaveCount(7);
+    const receiverFiles = receiver
+      .getByRole("list", { name: "Список файлов" })
+      .getByRole("listitem");
 
-    await expect(
-      receiver.getByRole("link", { name: "Скачать", exact: true }),
-    ).toHaveCount(0);
+    await expect(receiverFiles).toHaveCount(5);
+
+    await receiver
+      .getByRole("button", { name: "Ещё 2 файла", exact: true })
+      .click();
+
+    await expect(receiverFiles).toHaveCount(7);
+
+    const saveArchive = receiver.getByRole("link", {
+      name: "Сохранить",
+      exact: true,
+    });
+
+    await expect(saveArchive).toHaveCount(0);
 
     await receiver
       .getByRole("button", { name: "Отклонить", exact: true })
@@ -183,9 +210,7 @@ test("seven selected files require one consent and download as one complete unco
       receiver.getByText("Передача отменена", { exact: true }),
     ).toBeVisible();
 
-    await expect(
-      receiver.getByRole("link", { name: "Скачать", exact: true }),
-    ).toHaveCount(0);
+    await expect(saveArchive).toHaveCount(0);
 
     await sender
       .getByRole("button", { name: "Отправить", exact: true })
@@ -202,12 +227,10 @@ test("seven selected files require one consent and download as one complete unco
     ).toBeVisible();
 
     await expect(
-      sender.getByText("Все файлы получены получателем.", { exact: true }),
+      sender.getByText("Все файлы получены получателем", { exact: true }),
     ).toBeVisible();
 
-    await expect(
-      receiver.getByRole("link", { name: "Скачать", exact: true }),
-    ).toHaveCount(1);
+    await expect(saveArchive).toHaveCount(1);
 
     await expect(
       receiver.getByRole("button", { name: /Поделиться/u }),
@@ -215,7 +238,7 @@ test("seven selected files require one consent and download as one complete unco
 
     const downloadPromise = receiver.waitForEvent("download");
 
-    await receiver.getByRole("link", { name: "Скачать", exact: true }).click();
+    await saveArchive.click();
 
     const download = await downloadPromise;
 

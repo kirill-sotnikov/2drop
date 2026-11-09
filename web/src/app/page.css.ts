@@ -188,6 +188,11 @@ export const textButton = style({
   fontSize: 13,
 });
 
+export const fileListToggle = style([
+  textButton,
+  { display: "block", marginInlineStart: 16, minHeight: 32, padding: 0 },
+]);
+
 export const notice = style({
   padding: "16px 20px",
   background: "#493e31",

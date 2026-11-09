@@ -150,7 +150,7 @@ export const ReceiveScreen = () => {
                 href={received.url}
                 download={received.file.name}
               >
-                Скачать
+                Сохранить
               </a>
             ) : transfer?.phase === "incoming" ? (
               <>

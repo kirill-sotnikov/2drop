@@ -105,25 +105,6 @@ export const navLink = style({
   ":hover": { background: "#25435a" },
 });
 
-export const hero = style({ textAlign: "center", padding: "14px 0 34px" });
-
-export const eyebrow = style({
-  display: "block",
-  color: "#92b0c5",
-  fontSize: 13,
-  fontWeight: 500,
-  marginBottom: 14,
-});
-
-export const title = style({
-  fontSize: "clamp(2rem, 7.8vw, 3.65rem)",
-  fontWeight: 650,
-  fontVariantNumeric: "tabular-nums",
-  letterSpacing: "0.025em",
-  lineHeight: 1.15,
-  margin: "0 0 12px",
-});
-
 export const grid = style({
   display: "grid",
   gridTemplateColumns: "1.2fr 1fr",
@@ -330,6 +311,67 @@ export const recipientStatus = style({
 globalStyle(`${recipientStatus} > p`, { margin: 0 });
 
 export const refreshRecipient = style([copyId, { color: "#52b6f9" }]);
+
+export const dropZone = style({
+  position: "relative",
+  display: "grid",
+  justifyItems: "center",
+  alignContent: "center",
+  gap: 10,
+  minHeight: "clamp(174px, 34vw, 224px)",
+  margin: 0,
+  padding: "20px 12px",
+  borderRadius: 20,
+  background: "#192a38",
+  color: "#629bd2",
+  textAlign: "center",
+  selectors: {
+    "&:hover:has(input:enabled), &[data-dragging=true]:has(input:enabled)": {
+      background: "#243e56",
+      color: "#9bd6ff",
+    },
+    "&:has(input:focus-visible)": {
+      outline: "3px solid #70c8ff",
+      outlineOffset: 4,
+    },
+    "&:has(input:disabled)": {
+      opacity: 0.5,
+      cursor: "not-allowed",
+    },
+  },
+});
+
+export const dropOutline = style({
+  position: "absolute",
+  inset: 1,
+  width: "calc(100% - 2px)",
+  height: "calc(100% - 2px)",
+  overflow: "visible",
+  pointerEvents: "none",
+});
+
+export const dropPrompt = style({
+  color: "#f5f7fa",
+  fontSize: 15,
+  fontWeight: 600,
+});
+
+export const dropBrowse = style({
+  display: "block",
+  color: "#93ccff",
+  fontSize: 14,
+  fontWeight: 500,
+});
+
+export const dropInput = style({
+  position: "absolute",
+  inset: 0,
+  height: "100%",
+  margin: 0,
+  opacity: 0,
+  cursor: "pointer",
+  ":disabled": { pointerEvents: "none" },
+});
 
 export const visuallyHidden = style({
   position: "absolute",

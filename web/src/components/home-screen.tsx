@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatId, normalizeId } from "protocol";
+import { normalizeId } from "protocol";
 import {
   type ChangeEvent,
   type FormEvent,
@@ -75,12 +75,7 @@ export const HomeScreen = () => {
 
   return (
     <>
-      <section className={styles.hero}>
-        <span className={styles.eyebrow}>Ваш ID для получения файлов</span>
-        <h1 className={styles.title}>
-          {state.id ? formatId(state.id) : "Подключаемся…"}
-        </h1>
-      </section>
+      <h1 className={styles.visuallyHidden}>Передача файлов</h1>
       <section className={styles.grid} aria-label="Передача файлов">
         <form className={styles.actionCard} onSubmit={submit}>
           <div className={styles.cardHeading}>

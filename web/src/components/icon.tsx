@@ -7,6 +7,7 @@ type IconName =
   | "shield"
   | "arrow"
   | "file"
+  | "folder"
   | "copy"
   | "check"
   | "refresh";
@@ -78,6 +79,15 @@ export const Icon = ({
           <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z" />
           <path d="M14 3v6h6M8 14h8m-8 3h5" />
         </>
+      )}
+      {name === "folder" && (
+        <g stroke="none">
+          <path
+            fill="#2d6ce5"
+            d="M1 6a2.5 2.5 0 0 1 2.5-2.5H7c2.5 0 3.5 2.5 6 2.5h7.5A2.5 2.5 0 0 1 23 8.5V18a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3Z"
+          />
+          <rect x="1" y="8" width="22" height="13" rx="2.5" fill="#5598f6" />
+        </g>
       )}
     </svg>
   );

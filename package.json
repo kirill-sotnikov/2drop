@@ -10,7 +10,7 @@
     "check-eslint-all": "yarn check-eslint .",
     "lint": "yarn check-eslint-all",
     "lint:fix": "yarn check-eslint-all --fix",
-    "format": "prettier --write .",
+    "format": "prettier --list-different --write .",
     "format:check": "prettier --check .",
     "test": "yarn workspace service test && yarn workspace web test",
     "check": "yarn typecheck && yarn lint && yarn test && yarn build",

@@ -28,19 +28,16 @@ export const FileList = ({
 
   return (
     <>
-      <ul
-        id={listId}
-        aria-label="Список файлов"
-        style={{
-          paddingInlineStart: 16,
-          marginBottom: hasOverflow ? 0 : undefined,
-        }}
-      >
+      <ul id={listId} aria-label="Список файлов" className={styles.fileList}>
         {archiveNames(visibleFiles.map((file) => file.name)).map(
           (name, index) => (
-            <li key={name} className={styles.fileName}>
-              {visibleFiles[index].name} ·{" "}
-              {bytesLabel(visibleFiles[index].size)}
+            <li key={name} className={styles.fileRow}>
+              <span className={styles.fileName}>
+                {visibleFiles[index].name}
+              </span>
+              <span className={styles.fileSize}>
+                {bytesLabel(visibleFiles[index].size)}
+              </span>
             </li>
           ),
         )}

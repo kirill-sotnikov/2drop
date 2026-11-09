@@ -125,10 +125,7 @@ export const HomeScreen = () => {
       </section>
       <section className={styles.banner}>
         <div>
-          <h2 className={styles.bannerTitle}>
-            Передача файлов
-            <br />в один клик
-          </h2>
+          <h2 className={styles.bannerTitle}>Передача файлов в один клик</h2>
           <p className={styles.bannerDescription}>
             Фото, документы и архивы до {bytesLabel(state.maxFileBytes)}.
             В исходном качестве.
@@ -137,7 +134,7 @@ export const HomeScreen = () => {
         <div className={styles.illustration} aria-hidden="true">
           <div className={styles.paperBack} />
           <div className={styles.paperFront}>
-            <Icon name="file" size={42} />
+            <Icon name="file" size={32} />
           </div>
         </div>
       </section>

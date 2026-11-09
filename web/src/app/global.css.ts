@@ -8,6 +8,7 @@ globalStyle("body", {
   background: "#17212a",
   color: "#f5f7fa",
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  fontSize: 16,
   lineHeight: 1.5,
   WebkitFontSmoothing: "antialiased",
 });
@@ -20,7 +21,7 @@ globalStyle("h1, h2", {
   margin: "0 0 16px",
 });
 
-globalStyle("h1", { fontSize: "clamp(1.5rem, 4vw, 2rem)" });
+globalStyle("h1", { fontSize: 24 });
 
 globalStyle("h2", { fontSize: "1.25rem", fontWeight: 600 });
 
@@ -32,7 +33,7 @@ globalStyle("button", {
   padding: "13px 20px",
   borderRadius: 14,
   font: "inherit",
-  fontSize: 15,
+  fontSize: 16,
   fontWeight: 600,
   minHeight: 48,
   transition: "background 150ms ease, filter 150ms ease",
@@ -71,13 +72,11 @@ globalStyle("input::file-selector-button", {
 
 globalStyle("label", {
   display: "block",
-  fontSize: 13,
+  fontSize: 14,
   fontWeight: 500,
   color: "#b3c4d2",
   marginTop: 20,
 });
-
-globalStyle("progress", { width: "100%", height: 10, accentColor: "#32a7f5" });
 
 globalStyle(":focus-visible", {
   outline: "3px solid #70c8ff",

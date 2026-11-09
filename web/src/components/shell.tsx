@@ -8,6 +8,7 @@ import * as styles from "../app/page.css";
 import { bytesLabel } from "../lib/format";
 import { useSession } from "../lib/session-context";
 import { Icon } from "./icon";
+import { TransferProgress } from "./transfer-progress";
 
 export const Shell = ({ children }: { readonly children: ReactNode }) => {
   const pathname = usePathname();
@@ -63,7 +64,7 @@ export const Shell = ({ children }: { readonly children: ReactNode }) => {
         </div>
       )}
       {children}
-      {transfer?.direction === "send" && pathname !== "/receive" && (
+      {transfer?.direction === "send" && pathname === "/send" && (
         <section
           className={styles.card}
           aria-label="Текущая передача"
@@ -74,30 +75,10 @@ export const Shell = ({ children }: { readonly children: ReactNode }) => {
               ? transfer.transfer.files[0].name
               : `Файлов: ${transfer.transfer.files.length}`}
           </h2>
-          <p className={styles.muted}>
+          <p className={styles.metadata}>
             {bytesLabel(totalBytes)} · Получатель:{" "}
             {formatId(transfer.transfer.receiverId)}
           </p>
-          {transfer.phase === "offering" && (
-            <p>Ожидаем подтверждения получателя…</p>
-          )}
-          {transfer.phase === "connecting" && <p>Соединяем устройства…</p>}
-          {transfer.phase === "cancelling" && <p>Отменяем передачу…</p>}
-          {transfer.phase === "transferring" && (
-            <>
-              <progress
-                aria-label="Прогресс передачи"
-                max={totalBytes || 1}
-                value={transfer.bytes}
-              />
-              <p>
-                {bytesLabel(transfer.bytes)} / {bytesLabel(totalBytes)}
-                {transfer.bytes === totalBytes
-                  ? " · Ожидаем подтверждения получения…"
-                  : ""}
-              </p>
-            </>
-          )}
           {transfer.phase === "complete" && (
             <p className={styles.success}>
               {transfer.transfer.files.length === 1
@@ -107,20 +88,16 @@ export const Shell = ({ children }: { readonly children: ReactNode }) => {
           )}
           {transfer.phase === "ended" && <p>{transfer.message}</p>}
           {busy && (
-            <button
-              type="button"
-              className={styles.secondary}
-              onClick={cancel}
-              disabled={transfer.phase === "cancelling"}
-            >
-              Отменить передачу
-            </button>
+            <TransferProgress
+              transfer={transfer}
+              totalBytes={totalBytes}
+              onCancel={cancel}
+            />
           )}
         </section>
       )}
       <footer className={styles.footer}>
         <p>Без регистрации · Между устройствами</p>
-        <p>Держите страницу открытой во время передачи</p>
         <button
           type="button"
           className={styles.textButton}

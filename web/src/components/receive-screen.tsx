@@ -8,7 +8,10 @@ import { bytesLabel } from "../lib/format";
 import { useSession } from "../lib/session-context";
 import { FileList } from "./file-list";
 import { Icon } from "./icon";
+import { PageLoader } from "./page-loader";
+import { TransferProgress } from "./transfer-progress";
 
+// eslint-disable-next-line complexity
 export const ReceiveScreen = () => {
   const { state, decide, cancel } = useSession();
 
@@ -27,6 +30,12 @@ export const ReceiveScreen = () => {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState(false);
+
+  const [qrResult, setQrResult] = useState<{
+    id: string;
+    failed: boolean;
+  } | null>(null);
+
   const copyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -45,6 +54,7 @@ export const ReceiveScreen = () => {
     url.searchParams.set("id", state.id);
 
     const target = canvas.current;
+    const id = state.id;
 
     const renderCode = async () => {
       try {
@@ -53,8 +63,10 @@ export const ReceiveScreen = () => {
           margin: 2,
           errorCorrectionLevel: "M",
         });
+
+        if (live) setQrResult({ id, failed: false });
       } catch {
-        if (live) setMessage("Не удалось построить QR. Используйте ID.");
+        if (live) setQrResult({ id, failed: true });
       }
     };
 
@@ -80,125 +92,137 @@ export const ReceiveScreen = () => {
     }
   };
 
+  if (!state.id) {
+    return state.connection === "error" || state.error ? (
+      <section className={styles.card}>
+        <p role="status">Не удалось получить ID. Проверьте подключение.</p>
+      </section>
+    ) : (
+      <PageLoader message="Подготавливаем получение…" />
+    );
+  }
+
+  const qrReady = qrResult?.id === state.id;
+  const qrFailed = qrReady && qrResult.failed;
+
   return (
     <>
-      <section className={styles.card + " " + styles.receive}>
-        <p className={styles.muted + " " + styles.receiveDescription}>
-          Для отправки файлов отправитель может отсканировать QR код или ввести
-          ваш ID
-        </p>
-        {state.id && (
-          <>
-            <canvas
-              ref={canvas}
-              className={styles.qr}
-              role="img"
-              aria-label={`QR для отправки файла на ID ${formatId(state.id)}`}
-            />
-            <div className={styles.idRow}>
-              <span className={styles.idLabel}>Ваш ID</span>
-              <span className={styles.bigId}>{formatId(state.id)}</span>
-              <button
-                type="button"
-                className={styles.copyId}
-                onClick={copy}
-                aria-label="Скопировать ID"
-                title={message || "Скопировать ID"}
-              >
-                <Icon name={copied ? "check" : "copy"} size={20} />
-              </button>
-            </div>
-            <span className={styles.visuallyHidden} role="status">
-              {message}
-            </span>
-          </>
-        )}
-      </section>
-      {files && (transfer || received) && (
-        <section
-          className={styles.card + " " + styles.receiveFile}
-          aria-label="Получение файлов"
-          aria-live="polite"
-        >
-          <h2 className={styles.fileName}>
-            {files.length === 1 ? files[0].name : `Файлов: ${files.length}`}
-          </h2>
-          <p className={styles.muted}>
-            {bytesLabel(totalBytes)}
-            {transfer &&
-              ` · Отправитель: ${formatId(transfer.transfer.senderId)}`}
+      {!qrReady && <PageLoader message="Подготавливаем QR-код…" />}
+      <div hidden={!qrReady}>
+        <section className={styles.card + " " + styles.receive}>
+          <p className={styles.muted + " " + styles.receiveDescription}>
+            Для отправки файлов отправитель может отсканировать QR код или
+            ввести ваш ID
           </p>
-          {files.length > 1 && (
+          {state.id && (
             <>
-              <FileList files={files} />
-              <p className={styles.muted}>
-                Все файлы будут сохранены одним ZIP
-              </p>
+              <canvas
+                key={state.id}
+                ref={canvas}
+                className={styles.qr}
+                style={qrFailed ? { display: "none" } : undefined}
+                role="img"
+                aria-label={`QR для отправки файла на ID ${formatId(state.id)}`}
+              />
+              {qrFailed && (
+                <p role="status">Не удалось построить QR. Используйте ID.</p>
+              )}
+              <div className={styles.idRow}>
+                <span className={styles.idLabel}>Ваш ID</span>
+                <span className={styles.bigId}>{formatId(state.id)}</span>
+                <button
+                  type="button"
+                  className={styles.copyId}
+                  onClick={copy}
+                  aria-label="Скопировать ID"
+                  title={message || "Скопировать ID"}
+                >
+                  <Icon name={copied ? "check" : "copy"} size={20} />
+                </button>
+              </div>
+              <span className={styles.visuallyHidden} role="status">
+                {message}
+              </span>
             </>
           )}
-          {received && (
-            <p className={styles.success}>
-              {files.length > 1
-                ? "Все файлы получены. Архив готов к скачиванию."
-                : "Файл получен. Теперь его можно сохранить."}
-            </p>
-          )}
-          <div className={styles.actions}>
-            {received ? (
-              <a
-                className={styles.button}
-                href={received.url}
-                download={received.file.name}
-              >
-                Сохранить
-              </a>
-            ) : transfer?.phase === "incoming" ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => decide(true)}
-                  disabled={state.connection !== "online"}
-                >
-                  Принять
-                </button>
-                <button
-                  type="button"
-                  className={styles.secondary}
-                  onClick={() => decide(false)}
-                >
-                  Отклонить
-                </button>
-              </>
-            ) : loading ? (
-              <>
-                <button
-                  type="button"
-                  className={styles.loadingButton}
-                  disabled
-                  aria-busy="true"
-                  aria-label="Получаем файлы"
-                >
-                  <span className={styles.spinner} aria-hidden="true" />
-                  {transfer.phase === "transferring"
-                    ? `${Math.round((transfer.bytes / (totalBytes || 1)) * 100)}%`
-                    : "Соединяемся"}
-                </button>
-                <button
-                  type="button"
-                  className={styles.secondary}
-                  onClick={cancel}
-                  disabled={transfer.phase === "cancelling"}
-                >
-                  Отменить передачу
-                </button>
-              </>
-            ) : null}
-          </div>
-          {transfer?.phase === "ended" && (
-            <p role="status">{transfer.message}</p>
-          )}
         </section>
-      )}
+        {files && (transfer || received) && (
+          <section
+            className={styles.card + " " + styles.receiveFile}
+            aria-label="Получение файлов"
+            aria-live="polite"
+          >
+            <h2 className={styles.fileName}>
+              {files.length === 1 ? files[0].name : `Файлов: ${files.length}`}
+            </h2>
+            <p className={styles.metadata}>
+              {bytesLabel(totalBytes)}
+              {transfer &&
+                ` · Отправитель: ${formatId(transfer.transfer.senderId)}`}
+            </p>
+            {files.length > 1 && (
+              <>
+                <FileList files={files} />
+                <p className={styles.muted}>
+                  Все файлы будут сохранены одним ZIP
+                </p>
+              </>
+            )}
+            {received && (
+              <p className={styles.success}>
+                {files.length > 1
+                  ? "Все файлы получены. Архив готов к скачиванию."
+                  : "Файл получен. Теперь его можно сохранить."}
+              </p>
+            )}
+            {loading && (
+              <TransferProgress
+                transfer={transfer}
+                totalBytes={totalBytes}
+                onCancel={cancel}
+              />
+            )}
+            {(received || transfer?.phase === "incoming") && (
+              <div className={styles.actions}>
+                {received ? (
+                  <a
+                    className={styles.button}
+                    href={received.url}
+                    download={received.file.name}
+                  >
+                    Сохранить
+                  </a>
+                ) : transfer?.phase === "incoming" ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => decide(true)}
+                      disabled={state.connection !== "online"}
+                    >
+                      Принять
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.secondary}
+                      onClick={() => decide(false)}
+                    >
+                      Отклонить
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            )}
+            {transfer?.phase === "incoming" && (
+              <p className={styles.transferHint}>
+                Держите страницу открытой во время передачи
+              </p>
+            )}
+            {transfer?.phase === "ended" && (
+              <p role="status">{transfer.message}</p>
+            )}
+          </section>
+        )}
+      </div>
     </>
   );
 };

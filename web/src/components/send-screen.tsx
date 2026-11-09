@@ -14,6 +14,7 @@ import { bytesLabel } from "../lib/format";
 import { useSession } from "../lib/session-context";
 import { FileList } from "./file-list";
 import { Icon } from "./icon";
+import { PageLoader } from "./page-loader";
 
 const fitDropOutline = (outline: SVGRectElement | null) => {
   if (!outline) return undefined;
@@ -49,6 +50,7 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
   const [files, setFiles] = useState<File[]>([]);
   const [draggingFiles, setDraggingFiles] = useState(false);
   const [check, setCheck] = useState(0);
+  const [checkedId, setCheckedId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -81,6 +83,7 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
           setStatus(error instanceof Error ? error.message : String(error));
         }
       } finally {
+        if (live) setCheckedId(id);
         // eslint-disable-next-line require-atomic-updates -- The guard prevents overlapping refresh calls.
         inFlight = false;
       }
@@ -126,6 +129,10 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
     );
   }
 
+  if (checkedId !== id && state.connection !== "error" && !state.error) {
+    return <PageLoader message="Проверяем получателя…" />;
+  }
+
   return (
     <>
       <Link href="/" className={styles.backLink}>
@@ -133,8 +140,11 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
         Назад
       </Link>
       <form className={styles.card} onSubmit={submit}>
-        <h1 className={styles.recipientHeading}>Получатель {formatId(id)}</h1>
-        <div className={styles.recipientStatus} style={{ marginTop: 8 }}>
+        <h1 className={styles.recipientHeading}>
+          <span className={styles.recipientLabel}>Получатель</span>{" "}
+          {formatId(id)}
+        </h1>
+        <div className={styles.recipientStatus}>
           <p role="status">
             {state.connection === "online"
               ? status
@@ -160,6 +170,7 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
             <label
               className={styles.dropZone}
               data-dragging={draggingFiles}
+              data-compact={files.length > 0}
               onDragOver={(event) => {
                 event.preventDefault();
                 if (!event.dataTransfer.types.includes("Files")) return;
@@ -190,11 +201,15 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
                   strokeWidth={2}
                 />
               </svg>
-              <Icon name="folder" size={68} />
+              <Icon name="folder" size={files.length > 0 ? 36 : 68} />
               <span className={styles.dropPrompt}>
-                Перетащите файлы сюда
+                {files.length > 0
+                  ? "Изменить выбор файлов"
+                  : "Перетащите файлы сюда"}
                 <span className={styles.dropBrowse}>
-                  или выберите на устройстве
+                  {files.length > 0
+                    ? "Выберите заново или перетащите сюда"
+                    : "или выберите на устройстве"}
                 </span>
               </span>
               <input
@@ -212,7 +227,7 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
             </label>
             {files.length > 0 && (
               <>
-                <p className={styles.muted}>
+                <p className={styles.metadata}>
                   Файлов: {files.length} · {bytesLabel(totalBytes)}
                 </p>
                 <FileList files={files} />
@@ -244,6 +259,11 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
             >
               Отправить
             </button>
+            {!busy && (
+              <p className={styles.transferHint}>
+                Держите страницу открытой во время передачи
+              </p>
+            )}
           </>
         )}
       </form>

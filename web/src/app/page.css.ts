@@ -148,9 +148,17 @@ export const actionIcon = style({
   color: "#3bb0ff",
 });
 
-export const cardTitle = style({ margin: 0, fontSize: 19 });
+export const cardTitle = style({ margin: 0, fontSize: 20 });
 
-export const muted = style({ color: "#adc0cf", fontSize: 14 });
+export const muted = style({ color: "#adc0cf", fontSize: 16 });
+
+export const metadata = style({ color: "#adc0cf", fontSize: 14 });
+
+export const transferHint = style({
+  color: "#adc0cf",
+  fontSize: 14,
+  margin: "16px 0 0",
+});
 
 export const actions = style({
   display: "flex",
@@ -171,7 +179,7 @@ export const button = style({
   color: "white",
   textDecoration: "none",
   fontWeight: 600,
-  fontSize: 15,
+  fontSize: 16,
   minHeight: 48,
   ":hover": { filter: "brightness(1.1)" },
 });
@@ -185,12 +193,12 @@ export const textButton = style({
   color: "#52b6f9",
   padding: "8px 0",
   minHeight: 40,
-  fontSize: 13,
+  fontSize: 14,
 });
 
 export const fileListToggle = style([
   textButton,
-  { display: "block", marginInlineStart: 16, minHeight: 32, padding: 0 },
+  { display: "block", minHeight: 44, padding: "8px 0" },
 ]);
 
 export const notice = style({
@@ -303,13 +311,28 @@ export const copyId = style({
   ":hover": { color: "#f5f7fa" },
 });
 
-export const recipientHeading = style({ marginBottom: 0 });
+export const recipientHeading = style({
+  marginBottom: 0,
+  fontSize: 24,
+  fontVariantNumeric: "tabular-nums",
+});
+
+export const recipientLabel = style({
+  display: "block",
+  marginBottom: 6,
+  fontSize: 14,
+  fontWeight: 500,
+  letterSpacing: 0,
+  color: "#adc0cf",
+});
 
 export const recipientStatus = style({
   display: "flex",
   alignItems: "center",
   gap: 6,
-  margin: "0 0 16px",
+  margin: "8px 0 20px",
+  fontSize: 14,
+  color: "#adc0cf",
   selectors: { "&:last-child": { marginBottom: 0 } },
 });
 
@@ -331,6 +354,16 @@ export const dropZone = style({
   color: "#629bd2",
   textAlign: "center",
   selectors: {
+    '&[data-compact="true"]': {
+      minHeight: 104,
+      gridTemplateColumns: "auto minmax(0, 1fr)",
+      justifyContent: "center",
+      justifyItems: "start",
+      alignItems: "center",
+      gap: 16,
+      padding: "20px 24px",
+      textAlign: "left",
+    },
     "&:hover:has(input:enabled), &[data-dragging=true]:has(input:enabled)": {
       background: "#243e56",
       color: "#9bd6ff",
@@ -357,14 +390,14 @@ export const dropOutline = style({
 
 export const dropPrompt = style({
   color: "#f5f7fa",
-  fontSize: 15,
+  fontSize: 18,
   fontWeight: 600,
 });
 
 export const dropBrowse = style({
   display: "block",
   color: "#93ccff",
-  fontSize: 14,
+  fontSize: 16,
   fontWeight: 500,
 });
 
@@ -395,6 +428,25 @@ export const fileName = style({
   listStyle: "none",
 });
 
+export const fileList = style({ padding: 0, margin: 0, listStyle: "none" });
+
+export const fileRow = style({
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto",
+  alignItems: "baseline",
+  gap: 16,
+  padding: "12px 0",
+  borderBottom: "1px solid #344653",
+  fontSize: 16,
+});
+
+export const fileSize = style({
+  color: "#adc0cf",
+  fontSize: 14,
+  fontVariantNumeric: "tabular-nums",
+  whiteSpace: "nowrap",
+});
+
 export const success = style({ color: "#64d5ad", fontWeight: 600 });
 
 export const banner = style({
@@ -404,39 +456,35 @@ export const banner = style({
   alignItems: "center",
   justifyContent: "space-between",
   gap: 12,
-  minHeight: 160,
-  padding: "26px 30px",
+  minHeight: 128,
+  padding: "20px 24px",
   borderRadius: 26,
-  background: "linear-gradient(110deg, #268df6 0%, #36b5f5 65%, #60d3ed 100%)",
+  background: "linear-gradient(110deg, #22394b, #254757)",
   color: "white",
   marginBottom: 20,
 });
 
 export const bannerTitle = style({
-  fontSize: "clamp(20px, 4vw, 25px)",
+  fontSize: 20,
   lineHeight: 1.25,
-  marginBottom: 10,
+  marginBottom: 8,
   fontWeight: 600,
 });
 
 export const bannerDescription = style({
-  fontSize: 14,
+  fontSize: 16,
   margin: 0,
-  maxWidth: 300,
-  color: "#f0faff",
+  maxWidth: 440,
+  color: "#adc0cf",
 });
 
 export const illustration = style({
   position: "relative",
   flexShrink: 0,
-  width: 140,
-  height: 116,
+  width: 100,
+  height: 88,
   "@media": {
-    "screen and (max-width: 400px)": {
-      width: 80,
-      transform: "scale(0.8)",
-      transformOrigin: "right center",
-    },
+    "screen and (max-width: 400px)": { display: "none" },
   },
 });
 
@@ -444,8 +492,8 @@ export const paperBack = style({
   position: "absolute",
   top: 10,
   right: 4,
-  width: 73,
-  height: 95,
+  width: 54,
+  height: 70,
   borderRadius: 14,
   background: "#b8e6ff",
   border: "2px solid #e1f4ff",
@@ -458,9 +506,9 @@ export const paperFront = style({
   display: "grid",
   placeItems: "center",
   top: 6,
-  right: 40,
-  width: 73,
-  height: 95,
+  right: 30,
+  width: 54,
+  height: 70,
   borderRadius: 14,
   background: "linear-gradient(145deg, #fff, #d2e6ff)",
   border: "2px solid white",
@@ -484,36 +532,112 @@ export const shieldIcon = style([
 ]);
 
 export const infoTitle = style({
-  fontSize: 15,
+  fontSize: 16,
   fontWeight: 500,
   margin: "0 0 3px",
 });
 
-export const infoText = style({ color: "#adc0cf", fontSize: 13, margin: 0 });
+export const infoText = style({ color: "#adc0cf", fontSize: 14, margin: 0 });
 
 export const footer = style({
   marginTop: 28,
   textAlign: "center",
   color: "#92a9ba",
-  fontSize: 12,
+  fontSize: 14,
 });
 
 const spin = keyframes({ to: { transform: "rotate(360deg)" } });
 
 export const spinner = style({
-  width: 18,
-  height: 18,
+  width: 16,
+  height: 16,
+  flexShrink: 0,
   borderRadius: "50%",
   border: "2px solid rgba(255, 255, 255, 0.35)",
-  borderTopColor: "white",
+  borderTopColor: "#52b6f9",
   animation: `${spin} 800ms linear infinite`,
   "@media": { "(prefers-reduced-motion: reduce)": { animation: "none" } },
 });
 
-export const loadingButton = style({
-  display: "inline-flex",
+export const pageLoader = style({
+  display: "flex",
+  flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
+  gap: 16,
+  minHeight: "max(260px, calc(100svh - 200px))",
+  color: "#adc0cf",
+  fontSize: 16,
+  textAlign: "center",
+});
+
+export const pageSpinner = style([
+  spinner,
+  { width: 40, height: 40, borderWidth: 3 },
+]);
+
+export const transferProgress = style({ marginTop: 24 });
+
+export const progressHeader = style({
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 16,
+  marginBottom: 12,
+});
+
+export const progressStatus = style({
+  display: "flex",
+  alignItems: "center",
   gap: 10,
-  selectors: { "&:disabled": { opacity: 1, cursor: "wait" } },
+  minWidth: 0,
+  fontSize: 16,
+  fontWeight: 500,
+});
+
+export const progressPercent = style({
+  flexShrink: 0,
+  color: "#70c8ff",
+  fontSize: 20,
+  fontWeight: 600,
+  fontVariantNumeric: "tabular-nums",
+});
+
+export const progressTrack = style({
+  height: 10,
+  overflow: "hidden",
+  borderRadius: 999,
+  background: "#152631",
+  marginBottom: 16,
+});
+
+const progressSweep = keyframes({
+  from: { transform: "translateX(-100%)" },
+  to: { transform: "translateX(300%)" },
+});
+
+export const progressFill = style({
+  height: "100%",
+  borderRadius: "inherit",
+  background: "linear-gradient(90deg, #269ff2, #70c8ff)",
+  transition: "width 180ms ease-out",
+  selectors: {
+    '&[data-indeterminate="true"]': {
+      width: "35%",
+      animation: `${progressSweep} 1400ms ease-in-out infinite`,
+    },
+  },
+  "@media": {
+    "(prefers-reduced-motion: reduce)": {
+      transition: "none",
+      selectors: { '&[data-indeterminate="true"]': { animation: "none" } },
+    },
+  },
+});
+
+export const progressBytes = style({
+  margin: "0 0 20px",
+  color: "#adc0cf",
+  fontSize: 14,
+  fontVariantNumeric: "tabular-nums",
 });

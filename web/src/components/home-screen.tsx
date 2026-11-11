@@ -10,14 +10,11 @@ import {
   useRef,
   useState,
 } from "react";
-import * as styles from "../app/page.css";
-import { bytesLabel } from "../lib/format";
-import { useSession } from "../lib/session-context";
+import { FileIllustration } from "./file-illustration";
 import * as homeStyles from "./home-screen.css";
 import { Icon } from "./icon";
 
 export const HomeScreen = () => {
-  const { state } = useSession();
   const [id, setId] = useState("");
   const [error, setError] = useState("");
   const recipientInput = useRef<HTMLInputElement>(null);
@@ -36,6 +33,8 @@ export const HomeScreen = () => {
   }, [id]);
 
   const changeRecipient = (event: ChangeEvent<HTMLInputElement>) => {
+    setError("");
+
     const { value: rawValue, selectionStart } = event.currentTarget;
     const value = rawValue.toUpperCase();
 
@@ -75,90 +74,100 @@ export const HomeScreen = () => {
   };
 
   return (
-    <>
-      <h1 className={styles.visuallyHidden}>Передача файлов</h1>
-      <section className={styles.grid} aria-label="Передача файлов">
+    <div className={homeStyles.content}>
+      <section className={homeStyles.hero} aria-labelledby="home-title">
+        <div className={homeStyles.heroCopy}>
+          <h1 id="home-title" className={homeStyles.title}>
+            Передача файлов
+            <br />
+            <span className={homeStyles.highlight}>без приложений.</span>
+          </h1>
+          <p className={homeStyles.intro}>
+            Отправляйте фото, документы и всё важное между устройствами. Просто,
+            быстро, без регистрации.
+          </p>
+        </div>
+        <div className={homeStyles.artwork}>
+          <FileIllustration />
+          <span className={homeStyles.artSticker}>p2p</span>
+        </div>
+      </section>
+
+      <section className={homeStyles.actions} aria-label="Передача файлов">
         <form className={homeStyles.sendCard} onSubmit={submit}>
-          <div className={styles.cardHeading}>
+          <div className={homeStyles.cardHeading}>
             <span className={homeStyles.sendIcon}>
-              <Icon name="send" />
+              <Icon name="send" size={26} />
             </span>
-            <h2 className={styles.cardTitle}>Отправить файл</h2>
+            <div>
+              <h2 className={homeStyles.cardTitle}>Отправить файл</h2>
+            </div>
           </div>
-          <label htmlFor="recipient">ID получателя</label>
-          <input
-            className={homeStyles.recipient}
-            id="recipient"
-            ref={recipientInput}
-            value={id}
-            onChange={changeRecipient}
-            placeholder="A5CD-E2F3"
-            autoCapitalize="characters"
-            autoComplete="off"
-            spellCheck={false}
-            maxLength={32}
-            required
-          />
+          <p className={homeStyles.description}>
+            Введите ID получателя. Дальше - дело пары кликов.
+          </p>
+          <label className={homeStyles.label} htmlFor="recipient">
+            ID получателя
+          </label>
+          <div className={homeStyles.inputRow}>
+            <input
+              className={homeStyles.recipient}
+              id="recipient"
+              ref={recipientInput}
+              value={id}
+              onChange={changeRecipient}
+              placeholder="A5CD-E2F3"
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={32}
+              required
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "recipient-error" : undefined}
+            />
+            <button className={homeStyles.cardButton} type="submit">
+              Продолжить
+            </button>
+          </div>
           {error && (
-            <p className={homeStyles.error} role="alert">
+            <p id="recipient-error" className={homeStyles.error} role="alert">
               {error}
             </p>
           )}
-          <button className={homeStyles.cardButton} type="submit">
-            Продолжить →
-          </button>
         </form>
+
         <section className={homeStyles.receiveCard}>
-          <div className={styles.cardHeading}>
+          <div className={homeStyles.cardHeading}>
             <span className={homeStyles.receiveIcon}>
-              <Icon name="receive" />
+              <Icon name="receive" size={26} />
             </span>
-            <h2 className={styles.cardTitle}>Получить файл</h2>
+            <div>
+              <h2 className={homeStyles.cardTitle}>Получить файл</h2>
+            </div>
           </div>
-          <p className={styles.muted}>
-            Покажите QR-код или сообщите свой ID отправителю. Передача начнётся
-            после вашего согласия.
+          <p className={homeStyles.description}>
+            Покажите свой QR-код или поделитесь ID с отправителем.
           </p>
-          <Link
-            className={
-              styles.button +
-              " " +
-              styles.secondary +
-              " " +
-              homeStyles.cardButton
-            }
-            href="/receive"
-          >
-            <Icon name="qr" size={20} /> Показать мой QR
+          <Link className={homeStyles.receiveButton} href="/receive">
+            <Icon name="qr" size={22} /> Показать мой QR
           </Link>
         </section>
       </section>
-      <section className={homeStyles.banner}>
-        <div>
-          <h2 className={styles.bannerTitle}>Передача файлов в один клик</h2>
-          <p className={styles.bannerDescription}>
-            Фото, документы и архивы до {bytesLabel(state.maxFileBytes)}.
-            В исходном качестве.
-          </p>
-        </div>
-        <div className={homeStyles.illustration} aria-hidden="true">
-          <div className={styles.paperBack} />
-          <div className={styles.paperFront}>
-            <Icon name="file" size={32} />
-          </div>
-        </div>
-      </section>
+
       <section className={homeStyles.infoRow}>
-        <span className={styles.shieldIcon}>
-          <Icon name="shield" />
+        <span className={homeStyles.shieldIcon}>
+          <Icon name="shield" size={23} />
         </span>
         <div>
-          <h2 className={styles.infoTitle}>Передача под вашим контролем</h2>
-          <p className={styles.infoText}>
-            Файл отправится только с согласия получателя
+          <h2 className={homeStyles.infoTitle}>Вы решаете, что принимать</h2>
+          <p className={homeStyles.infoText}>
+            Передача начнётся только с согласия получателя.
           </p>
         </div>
+        <span className={homeStyles.infoDoodle} aria-hidden="true">
+          ✳
+        </span>
       </section>
-    </>
+    </div>
   );
 };

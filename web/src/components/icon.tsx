@@ -1,6 +1,8 @@
 import { type CSSProperties } from "react";
 
 type IconName =
+  | "close"
+  | "share"
   | "send"
   | "receive"
   | "qr"
@@ -34,6 +36,13 @@ export const Icon = ({
       aria-hidden="true"
       style={style}
     >
+      {name === "close" && <path d="m6 6 12 12M18 6 6 18" />}
+      {name === "share" && (
+        <>
+          <path d="M12 15V3m-4 4 4-4 4 4" />
+          <path d="M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8" />
+        </>
+      )}
       {name === "send" && (
         <>
           <path d="m21 3-7 18-4-7-7-4 18-7Z" />
@@ -81,12 +90,12 @@ export const Icon = ({
         </>
       )}
       {name === "folder" && (
-        <g stroke="none">
+        <g stroke="#20221c" strokeWidth="1.3">
           <path
-            fill="#2d6ce5"
+            fill="#b1ca46"
             d="M1 6a2.5 2.5 0 0 1 2.5-2.5H7c2.5 0 3.5 2.5 6 2.5h7.5A2.5 2.5 0 0 1 23 8.5V18a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3Z"
           />
-          <rect x="1" y="8" width="22" height="13" rx="2.5" fill="#5598f6" />
+          <rect x="1" y="8" width="22" height="13" rx="2.5" fill="#dcf747" />
         </g>
       )}
     </svg>

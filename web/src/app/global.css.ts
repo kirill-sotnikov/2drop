@@ -1,19 +1,19 @@
 import { globalStyle } from "@vanilla-extract/css";
 
 globalStyle("*", { boxSizing: "border-box" });
-globalStyle("html", { colorScheme: "dark", background: "#17212a" });
+globalStyle("html", { colorScheme: "light", background: "#f8f9ee" });
 
 globalStyle("body", {
   margin: 0,
-  background: "#17212a",
-  color: "#f5f7fa",
-  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  background: "#f8f9ee",
+  color: "#20221c",
+  fontFamily: '"Avenir Next", "Segoe UI", sans-serif',
   fontSize: 16,
   lineHeight: 1.5,
   WebkitFontSmoothing: "antialiased",
 });
 
-globalStyle("a", { color: "#39adff", textUnderlineOffset: 4 });
+globalStyle("a", { color: "#20221c", textUnderlineOffset: 4 });
 
 globalStyle("h1, h2", {
   lineHeight: 1.2,
@@ -28,8 +28,8 @@ globalStyle("h2", { fontSize: "1.25rem", fontWeight: 600 });
 globalStyle("button", {
   cursor: "pointer",
   border: 0,
-  background: "#32a7f5",
-  color: "#ffffff",
+  background: "#dafa35",
+  color: "#20221c",
   padding: "13px 20px",
   borderRadius: 14,
   font: "inherit",
@@ -41,28 +41,28 @@ globalStyle("button", {
 
 globalStyle("button:disabled", { opacity: 0.45, cursor: "not-allowed" });
 
-globalStyle("button:hover:not(:disabled)", { filter: "brightness(1.1)" });
+globalStyle("button:hover:not(:disabled)", { filter: "brightness(1.02)" });
 
 globalStyle("input", {
   display: "block",
   width: "100%",
   margin: "8px 0 18px",
   padding: "14px 16px",
-  border: "1px solid #405362",
+  border: "1px solid #20221c",
   borderRadius: 14,
-  background: "#192630",
-  color: "#f5f7fa",
+  background: "#fffef7",
+  color: "#20221c",
   font: "inherit",
   minHeight: 50,
 });
 
-globalStyle("input::placeholder", { color: "#879cab", opacity: 1 });
+globalStyle("input::placeholder", { color: "#777b6d", opacity: 1 });
 
 globalStyle("input[type=file]", { padding: 12, fontSize: 14 });
 
 globalStyle("input::file-selector-button", {
-  background: "#28465c",
-  color: "#7bceff",
+  background: "#ede8fa",
+  color: "#20221c",
   border: 0,
   borderRadius: 8,
   padding: "8px 12px",
@@ -74,12 +74,12 @@ globalStyle("label", {
   display: "block",
   fontSize: 14,
   fontWeight: 500,
-  color: "#b3c4d2",
+  color: "#5c6053",
   marginTop: 20,
 });
 
 globalStyle(":focus-visible", {
-  outline: "3px solid #70c8ff",
+  outline: "3px solid #20221c",
   outlineOffset: 4,
 });
 

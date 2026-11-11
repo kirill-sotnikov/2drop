@@ -4,6 +4,8 @@ import { createReadStream } from "node:fs";
 import { open, readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 
+test.use({ locale: "ru-RU" });
+
 const getId = async (page: Page) => {
   return page.evaluate(() => {
     const stored = JSON.parse(
@@ -63,8 +65,8 @@ const storedEntries = (zip: Buffer) => {
 test("seven selected files require one consent and download as one complete uncompressed ZIP", async ({
   browser,
 }, testInfo) => {
-  const receiverContext = await browser.newContext();
-  const senderContext = await browser.newContext();
+  const receiverContext = await browser.newContext({ locale: "ru-RU" });
+  const senderContext = await browser.newContext({ locale: "ru-RU" });
 
   try {
     const receiver = await receiverContext.newPage();
@@ -359,8 +361,8 @@ test("ID and socket survive client navigation and page reload; QR renders", asyn
 test("two browsers transfer binary and empty files with consent, exact bytes and repeat use", async ({
   browser,
 }) => {
-  const receiverContext = await browser.newContext();
-  const senderContext = await browser.newContext();
+  const receiverContext = await browser.newContext({ locale: "ru-RU" });
+  const senderContext = await browser.newContext({ locale: "ru-RU" });
 
   try {
     const receiver = await receiverContext.newPage();
@@ -470,8 +472,8 @@ test("two browsers transfer binary and empty files with consent, exact bytes and
 test("receiver can reject, sender can cancel mid-file, then retry from the start", async ({
   browser,
 }) => {
-  const receiverContext = await browser.newContext();
-  const senderContext = await browser.newContext();
+  const receiverContext = await browser.newContext({ locale: "ru-RU" });
+  const senderContext = await browser.newContext({ locale: "ru-RU" });
 
   try {
     const receiver = await receiverContext.newPage();
@@ -573,8 +575,8 @@ test("text, image, archive, the 100 MB boundary and an oversized file", async ({
 }, testInfo) => {
   test.setTimeout(90_000);
 
-  const receiverContext = await browser.newContext();
-  const senderContext = await browser.newContext();
+  const receiverContext = await browser.newContext({ locale: "ru-RU" });
+  const senderContext = await browser.newContext({ locale: "ru-RU" });
 
   try {
     const receiver = await receiverContext.newPage();

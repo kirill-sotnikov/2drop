@@ -100,7 +100,7 @@ test("server cancellation wins when RTC failure is delivered first", () => {
     });
 
     assert.equal(state.transfer?.phase, "ended");
-    assert.notEqual(state.transfer?.message, "Передача отменена");
+    assert.notEqual(state.transfer?.message, "errors.cancelled");
 
     socket.receive({
       v: VERSION,
@@ -109,7 +109,7 @@ test("server cancellation wins when RTC failure is delivered first", () => {
       reason: "cancelled",
     });
 
-    assert.equal(state.transfer?.message, "Передача отменена");
+    assert.equal(state.transfer?.message, "errors.cancelled");
 
     const pending = randomUUID();
 
@@ -150,7 +150,7 @@ test("server cancellation wins when RTC failure is delivered first", () => {
     });
 
     assert.equal(state.transfer?.phase, "ended");
-    assert.equal(state.transfer?.message, "Передача отменена");
+    assert.equal(state.transfer?.message, "errors.cancelled");
 
     socket.receive({
       v: VERSION,
@@ -159,7 +159,7 @@ test("server cancellation wins when RTC failure is delivered first", () => {
       reason: "expired",
     });
 
-    assert.equal(state.transfer?.message, "Передача отменена");
+    assert.equal(state.transfer?.message, "errors.cancelled");
   } finally {
     client.dispose();
 

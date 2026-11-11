@@ -1,13 +1,19 @@
-export const bytesLabel = (bytes: number) => {
-  if (bytes < 1_000) return `${bytes} Б`;
+import { useFormatter } from "next-intl";
 
-  const isMegabytes = bytes >= 1_000_000;
-  const divisor = isMegabytes ? 1_000_000 : 1_000;
-  const unit = isMegabytes ? "МБ" : "КБ";
+export const useBytesLabel = () => {
+  const format = useFormatter();
 
-  const size = (bytes / divisor).toLocaleString("ru", {
-    maximumFractionDigits: 1,
-  });
+  return (bytes: number) => {
+    const unit =
+      bytes >= 1_000_000 ? "megabyte" : bytes >= 1_000 ? "kilobyte" : "byte";
 
-  return `${size} ${unit}`;
+    const divisor = bytes >= 1_000_000 ? 1_000_000 : bytes >= 1_000 ? 1_000 : 1;
+
+    return format.number(bytes / divisor, {
+      style: "unit",
+      unit,
+      unitDisplay: "short",
+      maximumFractionDigits: 1,
+    });
+  };
 };

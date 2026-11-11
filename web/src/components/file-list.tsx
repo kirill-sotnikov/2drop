@@ -1,17 +1,12 @@
+import { useTranslations } from "next-intl";
 import { type FileMetadata } from "protocol";
 import { useId, useState } from "react";
 import * as styles from "../app/page.css";
 import { archiveNames } from "../lib/archive-names";
-import { bytesLabel } from "../lib/format";
+import { useBytesLabel } from "../lib/format";
 import { Icon } from "./icon";
 
 const visibleFileLimit = 5;
-const filePluralRules = new Intl.PluralRules("ru");
-
-const fileCountForms: Partial<Record<Intl.LDMLPluralRule, string>> = {
-  one: "файл",
-  few: "файла",
-};
 
 export const FileList = ({
   files,
@@ -20,18 +15,21 @@ export const FileList = ({
   readonly files: ReadonlyArray<Pick<FileMetadata, "name" | "size">>;
   readonly onRemove?: (index: number) => void;
 }) => {
+  const translate = useTranslations();
+  const bytesLabel = useBytesLabel();
   const listId = useId();
   const [expanded, setExpanded] = useState(false);
   const remainingFiles = files.length - visibleFileLimit;
   const hasOverflow = remainingFiles > 0;
   const visibleFiles = expanded ? files : files.slice(0, visibleFileLimit);
 
-  const fileCountForm =
-    fileCountForms[filePluralRules.select(remainingFiles)] ?? "файлов";
-
   return (
     <>
-      <ul id={listId} aria-label="Список файлов" className={styles.fileList}>
+      <ul
+        id={listId}
+        aria-label={translate("fileList.label")}
+        className={styles.fileList}
+      >
         {archiveNames(visibleFiles.map((file) => file.name)).map(
           (name, index) => (
             <li
@@ -50,7 +48,9 @@ export const FileList = ({
                   type="button"
                   className={styles.removeFile}
                   onClick={() => onRemove(index)}
-                  aria-label={`Удалить ${visibleFiles[index].name}`}
+                  aria-label={translate("fileList.remove", {
+                    name: visibleFiles[index].name,
+                  })}
                 >
                   <Icon name="close" size={18} />
                 </button>
@@ -67,7 +67,9 @@ export const FileList = ({
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
         >
-          {expanded ? "Свернуть" : `Ещё ${remainingFiles} ${fileCountForm}`}
+          {expanded
+            ? translate("fileList.collapse")
+            : translate("fileList.more", { count: remainingFiles })}
         </button>
       )}
     </>

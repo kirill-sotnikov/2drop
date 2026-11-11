@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { DropClient, initialState } from "../lib/client";
 import { SessionContext, type SessionValue } from "../lib/session-context";
+import { UiError } from "../lib/ui-error";
 
 export const SessionProvider = ({
   children,
@@ -42,7 +43,7 @@ export const SessionProvider = ({
     () => ({
       lookup: (id) =>
         client.current?.lookup(id) ??
-        Promise.reject(new Error("Подключаемся к серверу.")),
+        Promise.reject(new UiError("errors.connecting")),
       propose: (...args) => client.current?.propose(...args),
       decide: (accept) => client.current?.decide(accept),
       cancel: () => client.current?.cancel(),

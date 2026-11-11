@@ -11,6 +11,7 @@ import {
   VERSION,
 } from "protocol";
 import { archiveNames } from "./archive-names";
+import { type ErrorKey, UiError } from "./ui-error";
 
 // Kept separate from WebRTC so byte limits and completion can be tested without a browser.
 export class ReceiveBuffer {
@@ -41,8 +42,7 @@ export class ReceiveBuffer {
     private limit: number,
   ) {
     filesSchema.parse(files);
-    if (totalFileBytes(files) > limit)
-      throw new Error("Файлы превышают допустимый общий размер.");
+    if (totalFileBytes(files) > limit) throw new UiError("errors.fileTooLarge");
     this.names = archiveNames(files.map((file) => file.name));
 
     if (files.length > 1) {
@@ -56,7 +56,7 @@ export class ReceiveBuffer {
 
   start(size: number) {
     if (this.started || this.ended || size !== totalFileBytes(this.files))
-      throw new Error("Некорректное начало передачи.");
+      throw new UiError("errors.invalidStart");
     this.started = true;
   }
 
@@ -68,7 +68,7 @@ export class ReceiveBuffer {
       index !== this.fileIndex ||
       size !== this.files[index]?.size
     )
-      throw new Error("Нарушен порядок файлов.");
+      throw new UiError("errors.wrongFileOrder");
     this.inFile = true;
     this.fileBytes = 0;
 
@@ -85,7 +85,7 @@ export class ReceiveBuffer {
       index !== this.fileIndex ||
       this.fileBytes !== this.files[index]?.size
     )
-      throw new Error("Файл получен не полностью.");
+      throw new UiError("errors.incompleteFile");
     this.entry?.push(new Uint8Array(0), true);
     this.entry = undefined;
     this.inFile = false;
@@ -101,7 +101,7 @@ export class ReceiveBuffer {
       this.fileBytes + part.byteLength > this.files[this.fileIndex].size ||
       this.bytes + part.byteLength > this.limit
     ) {
-      throw new Error("Некорректный объём полученных данных.");
+      throw new UiError("errors.invalidReceivedSize");
     }
 
     this.bytes += part.byteLength;
@@ -118,13 +118,12 @@ export class ReceiveBuffer {
       this.fileIndex !== this.files.length ||
       this.bytes !== totalFileBytes(this.files)
     )
-      throw new Error("Подборка получена не полностью.");
+      throw new UiError("errors.incompleteFiles");
     this.ended = true;
 
     try {
       this.zip?.end();
-      if (this.zip && !this.zipEnded)
-        throw new Error("Не удалось собрать архив.");
+      if (this.zip && !this.zipEnded) throw new UiError("errors.archiveFailed");
 
       return new Blob(this.parts, {
         type: this.zip
@@ -171,7 +170,7 @@ export class FileChannel {
       progress: (bytes: number) => void;
       received: (blob: Blob) => void;
       acknowledged: () => void;
-      failed: (message: string) => void;
+      failed: (message: ErrorKey) => void;
     },
   ) {
     if (!outgoing) this.receiver = new ReceiveBuffer(metadata, maxFileBytes);
@@ -192,16 +191,16 @@ export class FileChannel {
       }
     };
 
-    channel.onerror = () => this.fail(new Error("Ошибка канала передачи."));
+    channel.onerror = () => this.fail(new UiError("errors.channelFailed"));
 
     channel.onclose = () => {
       if (!this.done && !this.abort.signal.aborted)
-        this.fail(new Error("Канал закрыт. Повторите передачу с начала."));
+        this.fail(new UiError("errors.channelClosed"));
     };
 
     this.timer = setInterval(() => {
       if (!this.done && Date.now() - this.lastProgress > PROGRESS_TIMEOUT_MS)
-        this.fail(new Error("Передача остановилась. Повторите попытку."));
+        this.fail(new UiError("errors.channelTimeout"));
     }, 1_000);
   }
 
@@ -224,9 +223,9 @@ export class FileChannel {
   }
 
   private async drain() {
-    if (this.abort.signal.aborted) throw new Error("Передача отменена.");
+    if (this.abort.signal.aborted) throw new UiError("errors.cancelled");
     if (this.channel.readyState !== "open")
-      throw new Error("Канал недоступен.");
+      throw new UiError("errors.channelUnavailable");
     if (this.channel.bufferedAmount <= BUFFER_HIGH_BYTES) return;
 
     await new Promise<void>((resolve, reject) => {
@@ -242,7 +241,7 @@ export class FileChannel {
         },
         closed: () => {
           handlers.cleanup();
-          reject(new Error("Передача прервана."));
+          reject(new UiError("errors.interrupted"));
         },
       };
 
@@ -256,7 +255,7 @@ export class FileChannel {
   private async sendFile() {
     const files = this.outgoing;
 
-    if (!files) throw new Error("Нет файлов для отправки.");
+    if (!files) throw new UiError("errors.noFiles");
 
     if (
       files.length !== this.metadata.length ||
@@ -268,7 +267,7 @@ export class FileChannel {
           file.type !== this.metadata[index].mime,
       )
     )
-      throw new Error("Список файлов изменился.");
+      throw new UiError("errors.filesChanged");
 
     const negotiated = this.maxMessageSize();
 
@@ -291,7 +290,7 @@ export class FileChannel {
         const bytes = await file.slice(offset, offset + chunk).arrayBuffer();
 
         if (this.abort.signal.aborted) return;
-        if (!bytes.byteLength) throw new Error("Не удалось прочитать файл.");
+        if (!bytes.byteLength) throw new UiError("errors.unreadableFile");
         this.channel.send(bytes);
         offset += bytes.byteLength;
         sent += bytes.byteLength;
@@ -313,7 +312,7 @@ export class FileChannel {
     if (this.done || this.abort.signal.aborted) return;
 
     if (data instanceof ArrayBuffer) {
-      if (!this.receiver) throw new Error("Неожиданные бинарные данные.");
+      if (!this.receiver) throw new UiError("errors.unexpectedData");
       this.receiver.append(data);
       this.touch();
       this.callbacks.progress(this.receiver.bytes);
@@ -322,12 +321,12 @@ export class FileChannel {
     }
 
     if (typeof data !== "string" || data.length > 2_048)
-      throw new Error("Некорректное сообщение канала.");
+      throw new UiError("errors.invalidChannelMessage");
 
     const message = channelMessageSchema.parse(JSON.parse(data));
 
     if (message.transferId !== this.id)
-      throw new Error("Данные другой передачи.");
+      throw new UiError("errors.wrongTransfer");
     if (message.type === "start" && this.receiver)
       this.receiver.start(message.size);
     else if (message.type === "file-start" && this.receiver)
@@ -343,7 +342,7 @@ export class FileChannel {
     } else if (message.type === "ack" && this.outgoing && this.sentEnd) {
       this.done = true;
       this.callbacks.acknowledged();
-    } else throw new Error("Нарушен порядок передачи.");
+    } else throw new UiError("errors.wrongTransferOrder");
     this.touch();
   }
 
@@ -353,7 +352,7 @@ export class FileChannel {
 
     try {
       this.callbacks.failed(
-        error instanceof Error ? error.message : "Ошибка передачи.",
+        error instanceof UiError ? error.key : "errors.failed",
       );
     } finally {
       this.dispose();

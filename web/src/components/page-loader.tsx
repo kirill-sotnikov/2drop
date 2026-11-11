@@ -1,13 +1,11 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import * as styles from "../app/page.css";
 
-export const PageLoader = ({
-  message = "Загружаем страницу…",
-}: {
-  readonly message?: string;
-}) => {
+export const PageLoader = ({ message }: { readonly message?: string }) => {
+  const translate = useTranslations();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -21,7 +19,9 @@ export const PageLoader = ({
       {visible && (
         <>
           <span className={styles.pageSpinner} aria-hidden="true" />
-          <span className={styles.visuallyHidden}>{message}</span>
+          <span className={styles.visuallyHidden}>
+            {message ?? translate("loading")}
+          </span>
         </>
       )}
     </div>

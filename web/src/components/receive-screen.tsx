@@ -1,10 +1,11 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { formatId, totalFileBytes } from "protocol";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import * as styles from "../app/page.css";
-import { bytesLabel } from "../lib/format";
+import { useBytesLabel } from "../lib/format";
 import { useSession } from "../lib/session-context";
 import { FileList } from "./file-list";
 import { Icon } from "./icon";
@@ -13,6 +14,8 @@ import { TransferProgress } from "./transfer-progress";
 
 // eslint-disable-next-line complexity
 export const ReceiveScreen = () => {
+  const translate = useTranslations();
+  const bytesLabel = useBytesLabel();
   const { state, decide, cancel, rotate } = useSession();
 
   const transfer =
@@ -107,13 +110,13 @@ export const ReceiveScreen = () => {
 
     try {
       await navigator.clipboard.writeText(state.id);
-      setMessage("ID скопирован.");
+      setMessage(translate("receivePage.idCopied"));
       setCopied(true);
       if (copyTimeout.current !== null) clearTimeout(copyTimeout.current);
       copyTimeout.current = setTimeout(() => setCopied(false), 1_000);
     } catch {
       setCopied(false);
-      setMessage("Скопируйте ID вручную.");
+      setMessage(translate("receivePage.copyManually"));
     }
   };
 
@@ -127,7 +130,7 @@ export const ReceiveScreen = () => {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "Отправить файлы через 2drop",
+          title: translate("receivePage.shareTitle"),
           url: url.href,
         });
 
@@ -140,19 +143,19 @@ export const ReceiveScreen = () => {
 
     try {
       await navigator.clipboard.writeText(url.href);
-      setMessage("Ссылка скопирована. Отправьте её отправителю.");
+      setMessage(translate("receivePage.linkCopied"));
     } catch {
-      setMessage("Не удалось поделиться ссылкой. Сообщите отправителю ваш ID.");
+      setMessage(translate("receivePage.shareFailed"));
     }
   };
 
   if (!state.id) {
     return state.connection === "error" || state.error ? (
       <section className={styles.card}>
-        <p role="status">Не удалось получить ID. Проверьте подключение.</p>
+        <p role="status">{translate("receivePage.idFailed")}</p>
       </section>
     ) : (
-      <PageLoader message="Подготавливаем получение…" />
+      <PageLoader message={translate("receivePage.preparing")} />
     );
   }
 
@@ -163,10 +166,10 @@ export const ReceiveScreen = () => {
     <>
       <div className={styles.pageHeading}>
         <div>
-          <h1 className={styles.pageTitle}>Получить файл</h1>
+          <h1 className={styles.pageTitle}>{translate("receiveFile")}</h1>
           {!hasTransfer && (
             <p className={styles.pageDescription}>
-              Поделитесь ID, ссылкой или QR-кодом.
+              {translate("receivePage.description")}
             </p>
           )}
         </div>
@@ -182,8 +185,12 @@ export const ReceiveScreen = () => {
           onClick={() => setExpandedFor(showInstructions ? null : transferKey)}
         >
           <Icon name="qr" size={20} />
-          {showInstructions ? "Скрыть инструкцию" : "Показать инструкцию"}
-          <span className={styles.toggleHint}>ID и QR-код</span>
+          {showInstructions
+            ? translate("receivePage.hideInstructions")
+            : translate("receivePage.showInstructions")}
+          <span className={styles.toggleHint}>
+            {translate("receivePage.instructionHint")}
+          </span>
           <Icon
             name="arrow"
             size={18}
@@ -197,10 +204,12 @@ export const ReceiveScreen = () => {
       <div id="receive-instructions" hidden={!showInstructions}>
         <section
           className={styles.receive}
-          aria-label="Код для получения файлов"
+          aria-label={translate("receivePage.codeLabel")}
         >
           <div className={styles.receiveDetails}>
-            <span className={styles.idLabel}>Ваш ID</span>
+            <span className={styles.idLabel}>
+              {translate("receivePage.yourId")}
+            </span>
             <div className={styles.idRow}>
               <span className={styles.bigId}>{formatId(state.id)}</span>
               <button
@@ -208,8 +217,8 @@ export const ReceiveScreen = () => {
                 className={styles.copyId}
                 data-copied={copied}
                 onClick={copy}
-                aria-label="Скопировать ID"
-                title="Скопировать ID"
+                aria-label={translate("receivePage.copyId")}
+                title={translate("receivePage.copyId")}
               >
                 <Icon name={copied ? "check" : "copy"} size={20} />
               </button>
@@ -219,7 +228,8 @@ export const ReceiveScreen = () => {
               className={styles.shareButton}
               onClick={share}
             >
-              <Icon name="share" size={20} /> Поделиться ссылкой
+              <Icon name="share" size={20} />{" "}
+              {translate("receivePage.shareLink")}
             </button>
             <button
               type="button"
@@ -227,7 +237,7 @@ export const ReceiveScreen = () => {
               onClick={rotate}
               disabled={active || state.connection !== "online"}
             >
-              Обновить мой ID
+              {translate("receivePage.refreshId")}
             </button>
             {message && (
               <p className={styles.metadata} role="status">
@@ -235,7 +245,7 @@ export const ReceiveScreen = () => {
               </p>
             )}
             <p className={styles.receiveDescription}>
-              Отправитель может ввести этот ID или открыть ссылку.
+              {translate("receivePage.idHint")}
             </p>
           </div>
           <div className={styles.qrPanel}>
@@ -246,24 +256,26 @@ export const ReceiveScreen = () => {
                 className={styles.qr}
                 style={!qrReady || qrFailed ? { display: "none" } : undefined}
                 role="img"
-                aria-label={`QR для отправки файла на ID ${formatId(state.id)}`}
+                aria-label={translate("receivePage.qrLabel", {
+                  id: formatId(state.id),
+                })}
               />
               {!qrReady && (
                 <p className={styles.metadata} role="status">
-                  Подготавливаем QR-код…
+                  {translate("receivePage.preparingQr")}
                 </p>
               )}
               {qrFailed && (
-                <p role="status">Не удалось построить QR. Используйте ID.</p>
+                <p role="status">{translate("receivePage.qrFailed")}</p>
               )}
             </div>
-            <p className={styles.qrCaption}>Или отсканировать QR-код камерой</p>
+            <p className={styles.qrCaption}>
+              {translate("receivePage.scanQr")}
+            </p>
           </div>
         </section>
         {!hasTransfer && (
-          <p className={styles.transferHint}>
-            Держите страницу открытой во время передачи файлов
-          </p>
+          <p className={styles.transferHint}>{translate("keepPageOpen")}</p>
         )}
       </div>
 
@@ -273,27 +285,31 @@ export const ReceiveScreen = () => {
           tabIndex={-1}
           className={styles.card + " " + styles.receiveFile}
           data-phase={transfer?.phase}
-          aria-label="Получение файлов"
+          aria-label={translate("receivePage.transferLabel")}
         >
           <h2 className={styles.cardTitle} aria-live="polite">
             {transfer?.phase === "incoming"
-              ? "Вам отправляют файлы"
+              ? translate("receivePage.incoming")
               : received
-                ? "Файлы получены"
+                ? translate("receivePage.received")
                 : transfer?.phase === "ended"
-                  ? "Передача завершена"
-                  : "Получаем файлы"}
+                  ? translate("transferEnded")
+                  : translate("receivingFiles")}
           </h2>
           <p
             className={styles.fileSummary}
             title={files.length === 1 ? files[0].name : undefined}
           >
-            {files.length === 1 ? files[0].name : `Файлов: ${files.length}`}
+            {files.length === 1
+              ? files[0].name
+              : translate("fileCount", { count: files.length })}
           </p>
           <p className={styles.metadata}>
             {bytesLabel(totalBytes)}
             {transfer &&
-              ` · Отправитель: ${formatId(transfer.transfer.senderId)}`}
+              translate("receivePage.senderSummary", {
+                id: formatId(transfer.transfer.senderId),
+              })}
           </p>
 
           {transfer?.phase === "incoming" && (
@@ -304,7 +320,8 @@ export const ReceiveScreen = () => {
                 onClick={() => decide(true)}
                 disabled={state.connection !== "online"}
               >
-                <Icon name="receive" size={20} /> Принять
+                <Icon name="receive" size={20} />{" "}
+                {translate("receivePage.accept")}
               </button>
               <button
                 type="button"
@@ -312,7 +329,7 @@ export const ReceiveScreen = () => {
                 onClick={() => decide(false)}
                 disabled={state.connection !== "online"}
               >
-                Отклонить
+                {translate("receivePage.reject")}
               </button>
             </div>
           )}
@@ -327,34 +344,37 @@ export const ReceiveScreen = () => {
             <>
               <p className={styles.success}>
                 {files.length > 1
-                  ? "Все файлы получены. Архив готов к скачиванию."
-                  : "Файл получен. Теперь его можно сохранить."}
+                  ? translate("receivePage.archiveReady")
+                  : translate("receivePage.fileReady")}
               </p>
               <a
                 className={styles.sendButton}
                 href={received.url}
                 download={received.file.name}
               >
-                <Icon name="receive" size={20} /> Сохранить
+                <Icon name="receive" size={20} />{" "}
+                {translate("receivePage.save")}
               </a>
             </>
           )}
           {transfer?.phase === "ended" && (
-            <p role="status">{transfer.message}</p>
+            <p role="status">
+              {transfer.message && translate(transfer.message)}
+            </p>
           )}
           {files.length > 1 && (
             <div className={styles.transferFiles}>
               <FileList files={files} />
               {!received && transfer?.phase !== "ended" && (
                 <p className={styles.metadata}>
-                  Все файлы будут сохранены одним ZIP.
+                  {translate("receivePage.saveZip")}
                 </p>
               )}
             </div>
           )}
           {transfer?.phase === "incoming" && (
             <p className={styles.transferHint}>
-              Передача начнётся после вашего согласия.
+              {translate("receivePage.consent")}
             </p>
           )}
         </section>

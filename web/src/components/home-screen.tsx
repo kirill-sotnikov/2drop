@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { normalizeId } from "protocol";
 import {
   type ChangeEvent,
@@ -15,6 +16,7 @@ import * as homeStyles from "./home-screen.css";
 import { Icon } from "./icon";
 
 export const HomeScreen = () => {
+  const translate = useTranslations();
   const [id, setId] = useState("");
   const [error, setError] = useState("");
   const recipientInput = useRef<HTMLInputElement>(null);
@@ -65,7 +67,7 @@ export const HomeScreen = () => {
     const normalized = normalizeId(id);
 
     if (!normalized) {
-      setError("Введите ID из 8 символов, например K7M4-P9RX.");
+      setError(translate("mainPage.invalidId"));
 
       return;
     }
@@ -78,14 +80,13 @@ export const HomeScreen = () => {
       <section className={homeStyles.hero} aria-labelledby="home-title">
         <div className={homeStyles.heroCopy}>
           <h1 id="home-title" className={homeStyles.title}>
-            Передача файлов
+            {translate("mainPage.title")}
             <br />
-            <span className={homeStyles.highlight}>без приложений.</span>
+            <span className={homeStyles.highlight}>
+              {translate("mainPage.titleHighlight")}
+            </span>
           </h1>
-          <p className={homeStyles.intro}>
-            Отправляйте фото, документы и всё важное между устройствами. Просто,
-            быстро, без регистрации.
-          </p>
+          <p className={homeStyles.intro}>{translate("mainPage.intro")}</p>
         </div>
         <div className={homeStyles.artwork}>
           <FileIllustration />
@@ -93,21 +94,24 @@ export const HomeScreen = () => {
         </div>
       </section>
 
-      <section className={homeStyles.actions} aria-label="Передача файлов">
+      <section
+        className={homeStyles.actions}
+        aria-label={translate("mainPage.title")}
+      >
         <form className={homeStyles.sendCard} onSubmit={submit}>
           <div className={homeStyles.cardHeading}>
             <span className={homeStyles.sendIcon}>
               <Icon name="send" size={26} />
             </span>
             <div>
-              <h2 className={homeStyles.cardTitle}>Отправить файл</h2>
+              <h2 className={homeStyles.cardTitle}>{translate("sendFile")}</h2>
             </div>
           </div>
           <p className={homeStyles.description}>
-            Введите ID получателя. Дальше - дело пары кликов.
+            {translate("mainPage.sendDescription")}
           </p>
           <label className={homeStyles.label} htmlFor="recipient">
-            ID получателя
+            {translate("mainPage.recipientId")}
           </label>
           <div className={homeStyles.inputRow}>
             <input
@@ -126,7 +130,7 @@ export const HomeScreen = () => {
               aria-describedby={error ? "recipient-error" : undefined}
             />
             <button className={homeStyles.cardButton} type="submit">
-              Продолжить
+              {translate("continue")}
             </button>
           </div>
           {error && (
@@ -142,14 +146,16 @@ export const HomeScreen = () => {
               <Icon name="receive" size={26} />
             </span>
             <div>
-              <h2 className={homeStyles.cardTitle}>Получить файл</h2>
+              <h2 className={homeStyles.cardTitle}>
+                {translate("receiveFile")}
+              </h2>
             </div>
           </div>
           <p className={homeStyles.description}>
-            Покажите свой QR-код или поделитесь ID с отправителем.
+            {translate("mainPage.receiveDescription")}
           </p>
           <Link className={homeStyles.receiveButton} href="/receive">
-            <Icon name="qr" size={22} /> Показать мой QR
+            <Icon name="qr" size={22} /> {translate("mainPage.showQr")}
           </Link>
         </section>
       </section>
@@ -159,9 +165,11 @@ export const HomeScreen = () => {
           <Icon name="shield" size={23} />
         </span>
         <div>
-          <h2 className={homeStyles.infoTitle}>Вы решаете, что принимать</h2>
+          <h2 className={homeStyles.infoTitle}>
+            {translate("mainPage.consentTitle")}
+          </h2>
           <p className={homeStyles.infoText}>
-            Передача начнётся только с согласия получателя.
+            {translate("mainPage.consentDescription")}
           </p>
         </div>
         <span className={homeStyles.infoDoodle} aria-hidden="true">

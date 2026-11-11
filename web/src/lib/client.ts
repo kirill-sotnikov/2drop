@@ -14,6 +14,7 @@ import {
   VERSION,
 } from "protocol";
 import { FileChannel } from "./file-channel";
+import { type ErrorKey, type StatusKey, UiError } from "./ui-error";
 
 export interface TransferView {
   transfer: Transfer;
@@ -27,7 +28,7 @@ export interface TransferView {
     | "complete"
     | "ended";
   bytes: number;
-  message?: string;
+  message?: StatusKey;
 }
 
 export interface ClientState {
@@ -36,7 +37,7 @@ export interface ClientState {
   maxFileBytes: number;
   transfer: TransferView | null;
   received: { url: string; file: File; files: Transfer["files"] } | null;
-  error: string | null;
+  error: ErrorKey | null;
 }
 
 export const initialState: ClientState = {
@@ -48,27 +49,28 @@ export const initialState: ClientState = {
   error: null,
 };
 
-export const reasonText: Record<EndReason, string> = {
-  complete: "Файл передан успешно",
-  rejected: "Получатель отклонил передачу",
-  cancelled: "Передача отменена",
-  expired: "Время ожидания истекло",
-  disconnected: "Соединение потеряно. Повторите передачи.",
-  busy: "Участник занят другой передачей",
-  failed: "Не удалось передать файл. Повторите попытку.",
-  rotated: "ID обновлён. Откройте новое приглашение",
+const reasonKey: Record<EndReason, StatusKey> = {
+  complete: "fileSent",
+  rejected: "errors.rejected",
+  cancelled: "errors.cancelled",
+  expired: "errors.expired",
+  disconnected: "errors.disconnected",
+  busy: "errors.busy",
+  failed: "errors.failed",
+  rotated: "errors.rotated",
 };
 
-const errors: Record<string, string> = {
-  unavailable: "Получатель недоступен",
-  busy: "Участник занят другой передачей",
-  self: "Укажите ID другого устройства",
-  rate_limited: "Слишком много запросов. Подождите минуту.",
-  file_too_large: "Файлы превышают допустимый общий размер",
-  capacity: "Сервис занят. Повторите попытку позже.",
-  session_in_use:
-    "Эта сессия уже открыта. Ожидаем отключения предыдущего соединения.",
-};
+const errors = new Map<string, ErrorKey>(
+  Object.entries({
+    unavailable: "recipientUnavailable",
+    busy: "errors.busy",
+    self: "errors.self",
+    rate_limited: "errors.rateLimited",
+    file_too_large: "errors.fileTooLarge",
+    capacity: "errors.capacity",
+    session_in_use: "errors.sessionInUse",
+  }),
+);
 
 type LookupStatus = "available" | "unavailable" | "busy" | "self";
 
@@ -158,7 +160,7 @@ export class DropClient {
     if (!configured && location.protocol === "https:") {
       this.patch({
         connection: "error",
-        error: "Не настроен защищённый адрес signaling-сервера.",
+        error: "errors.missingSecureSignaling",
       });
 
       return;
@@ -175,7 +177,7 @@ export class DropClient {
     } catch {
       this.patch({
         connection: "error",
-        error: "Некорректный адрес signaling-сервера.",
+        error: "errors.invalidSignaling",
       });
 
       return;
@@ -196,7 +198,7 @@ export class DropClient {
 
         this.handle(parsed);
       } catch {
-        this.patch({ error: "Сервер прислал некорректное сообщение." });
+        this.patch({ error: "errors.invalidServerMessage" });
         socket.close();
       }
     };
@@ -232,7 +234,7 @@ export class DropClient {
 
       const timer = setTimeout(() => {
         this.lookups.delete(requestId);
-        reject(new Error("Получатель не ответил. Повторите проверку."));
+        reject(new UiError("errors.lookupTimeout"));
       }, 8_000);
 
       this.lookups.set(requestId, { resolve, reject, timer });
@@ -240,7 +242,7 @@ export class DropClient {
       if (!this.send({ v: VERSION, type: "lookup", requestId, targetId })) {
         clearTimeout(timer);
         this.lookups.delete(requestId);
-        reject(new Error("Нет соединения с сервером."));
+        reject(new UiError("errors.offline"));
       }
     });
 
@@ -254,13 +256,13 @@ export class DropClient {
     }));
 
     if (!filesSchema.safeParse(metadata).success) {
-      this.patch({ error: "Некорректный или слишком большой список файлов." });
+      this.patch({ error: "errors.invalidFiles" });
 
       return;
     }
 
     if (totalFileBytes(files) > this.state.maxFileBytes) {
-      this.patch({ error: errors.file_too_large });
+      this.patch({ error: "errors.fileTooLarge" });
 
       return;
     }
@@ -271,7 +273,7 @@ export class DropClient {
       this.pendingOffer = undefined;
 
       this.patch({
-        error: "Сервер не подтвердил предложение. Переподключаемся.",
+        error: "errors.offerTimeout",
       });
 
       this.socket?.close();
@@ -287,12 +289,12 @@ export class DropClient {
         requestId,
         targetId,
         files: metadata,
-        senderName: senderName.trim() || "Отправитель",
+        senderName: senderName.trim() || this.state.id || "2drop",
       })
     ) {
       clearTimeout(timer);
       this.pendingOffer = undefined;
-      this.patch({ error: "Нет соединения с сервером." });
+      this.patch({ error: "errors.offline" });
     }
   };
 
@@ -303,7 +305,7 @@ export class DropClient {
       if (
         totalFileBytes(this.active.transfer.files) > this.state.maxFileBytes
       ) {
-        this.patch({ error: errors.file_too_large });
+        this.patch({ error: "errors.fileTooLarge" });
 
         return;
       }
@@ -328,7 +330,11 @@ export class DropClient {
       active.cancelling = true;
       active.channel?.stop();
       clearTimeout(active.timer);
-      this.view({ phase: "cancelling", message: "Отменяем передачу…" });
+
+      this.view({
+        phase: "cancelling",
+        message: "transferProgress.cancelling",
+      });
 
       if (
         !this.send({
@@ -382,7 +388,7 @@ export class DropClient {
         this.save();
         this.send({ v: VERSION, type: "hello" });
       } else {
-        this.patch({ error: errors.session_in_use });
+        this.patch({ error: "errors.sessionInUse" });
         this.socket?.close();
       }
 
@@ -393,13 +399,12 @@ export class DropClient {
       ? this.lookups.get(message.requestId)
       : undefined;
 
-    const text =
-      errors[message.code] || "Запрос отклонён сервером. Повторите попытку.";
+    const text = errors.get(message.code) || "errors.requestRejected";
 
     if (lookup && message.requestId) {
       clearTimeout(lookup.timer);
       this.lookups.delete(message.requestId);
-      lookup.reject(new Error(text));
+      lookup.reject(new UiError(text));
     }
 
     if (
@@ -490,7 +495,7 @@ export class DropClient {
       try {
         this.startPeer(this.active, message.iceServers);
       } catch {
-        this.fail("Ваш браузер не смог создать WebRTC-соединение.");
+        this.fail("errors.peerCreationFailed");
       }
     } else if (
       message.type === "signal" &&
@@ -501,7 +506,7 @@ export class DropClient {
       this.queueSignal(
         active,
         () => this.handleSignal(active, message.signal),
-        "Не удалось установить соединение между устройствами.",
+        "errors.signalFailed",
       );
     } else if (
       message.type === "ended" &&
@@ -516,7 +521,7 @@ export class DropClient {
         // The server's terminal decision still belongs to this transfer.
         this.view({
           phase: message.reason === "complete" ? "complete" : "ended",
-          message: reasonText[message.reason],
+          message: reasonKey[message.reason],
           ...(message.reason === "complete"
             ? { bytes: totalFileBytes(this.state.transfer.transfer.files) }
             : {}),
@@ -528,7 +533,7 @@ export class DropClient {
   private queueSignal(
     active: Active,
     action: () => Promise<void>,
-    failure: string,
+    failure: ErrorKey,
   ) {
     const previous = active.signalChain;
 
@@ -557,10 +562,7 @@ export class DropClient {
     active.peer = peer;
 
     active.timer = setTimeout(() => {
-      if (this.active === active)
-        this.fail(
-          "Не удалось соединить устройства. Проверьте сеть и настройки TURN.",
-        );
+      if (this.active === active) this.fail("errors.peerTimeout");
     }, CONNECT_TIMEOUT_MS);
 
     peer.onicecandidate = (event) => {
@@ -584,7 +586,7 @@ export class DropClient {
         !active.cancelling &&
         ["failed", "disconnected"].includes(peer.connectionState)
       )
-        this.fail("Соединение потеряно. Повторите передачу с начала.");
+        this.fail("errors.peerDisconnected");
     };
 
     if (active.files) {
@@ -609,7 +611,7 @@ export class DropClient {
             signal: { kind: "offer", sdp: offer.sdp },
           });
         },
-        "Не удалось создать предложение WebRTC.",
+        "errors.offerFailed",
       );
     } else
       peer.ondatachannel = (event) => {
@@ -621,7 +623,7 @@ export class DropClient {
           event.channel.maxPacketLifeTime !== null
         ) {
           event.channel.close();
-          this.fail("Некорректный файловый канал.");
+          this.fail("errors.invalidChannel");
 
           return;
         }
@@ -741,7 +743,7 @@ export class DropClient {
     );
   }
 
-  private fail(message: string) {
+  private fail(message: ErrorKey) {
     if (this.active)
       this.send({
         v: VERSION,
@@ -751,7 +753,7 @@ export class DropClient {
     this.finishLocal("failed", message);
   }
 
-  private finishLocal(reason: EndReason, message = reasonText[reason]) {
+  private finishLocal(reason: EndReason, message = reasonKey[reason]) {
     const active = this.active;
 
     if (!active) return;
@@ -785,7 +787,7 @@ export class DropClient {
 
     for (const lookup of this.lookups.values()) {
       clearTimeout(lookup.timer);
-      lookup.reject(new Error("Соединение потеряно."));
+      lookup.reject(new UiError("errors.connectionLost"));
     }
 
     this.lookups.clear();

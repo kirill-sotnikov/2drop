@@ -1,21 +1,28 @@
 import "./global.css";
 import { type Metadata } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
 import { type ReactNode } from "react";
 import { SessionProvider } from "../components/session-provider";
 import { Shell } from "../components/shell";
 
-export const metadata: Metadata = {
-  title: "2drop",
-  description: "Передача файлов между устройствами через браузер.",
+export const generateMetadata = async (): Promise<Metadata> => {
+  const translate = await getTranslations();
+
+  return { title: "2drop", description: translate("description") };
 };
 
-const RootLayout = ({ children }: { readonly children: ReactNode }) => {
+const RootLayout = async ({ children }: { readonly children: ReactNode }) => {
+  const locale = await getLocale();
+
   return (
-    <html lang="ru">
+    <html lang={locale}>
       <body>
-        <SessionProvider>
-          <Shell>{children}</Shell>
-        </SessionProvider>
+        <NextIntlClientProvider>
+          <SessionProvider>
+            <Shell>{children}</Shell>
+          </SessionProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

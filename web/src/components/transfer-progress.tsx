@@ -1,6 +1,7 @@
+import { useFormatter, useTranslations } from "next-intl";
 import * as styles from "../app/page.css";
 import { type TransferView } from "../lib/client";
-import { bytesLabel } from "../lib/format";
+import { useBytesLabel } from "../lib/format";
 
 export const TransferProgress = ({
   transfer,
@@ -11,26 +12,30 @@ export const TransferProgress = ({
   readonly totalBytes: number;
   readonly onCancel: () => void;
 }) => {
+  const translate = useTranslations();
+  const format = useFormatter();
+  const bytesLabel = useBytesLabel();
   const { phase, direction } = transfer;
   const transferring = phase === "transferring";
   const bytes = Math.min(totalBytes, Math.max(0, transfer.bytes));
   const percent = totalBytes > 0 ? Math.floor((bytes / totalBytes) * 100) : 100;
+  const percentLabel = format.number(percent / 100, { style: "percent" });
   const waitingForCompletion = transferring && bytes === totalBytes;
 
   const status =
     phase === "offering"
-      ? "Ожидаем подтверждения получателя…"
+      ? translate("transferProgress.waitingForAcceptance")
       : phase === "connecting"
-        ? "Соединяем устройства…"
+        ? translate("transferProgress.connecting")
         : phase === "cancelling"
-          ? "Отменяем передачу…"
+          ? translate("transferProgress.cancelling")
           : waitingForCompletion
             ? direction === "send"
-              ? "Ожидаем подтверждения получения…"
-              : "Завершаем получение…"
+              ? translate("transferProgress.waitingForDelivery")
+              : translate("transferProgress.finishing")
             : direction === "send"
-              ? "Отправляем файлы"
-              : "Получаем файлы";
+              ? translate("transferProgress.sending")
+              : translate("receivingFiles");
 
   return (
     <div className={styles.transferProgress}>
@@ -40,19 +45,23 @@ export const TransferProgress = ({
           {status}
         </span>
         {transferring && (
-          <span className={styles.progressPercent}>{percent}%</span>
+          <span className={styles.progressPercent}>{percentLabel}</span>
         )}
       </div>
       <div
         className={styles.progressTrack}
         role="progressbar"
-        aria-label="Прогресс передачи"
+        aria-label={translate("transferProgress.label")}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={transferring ? percent : undefined}
         aria-valuetext={
           transferring
-            ? `${percent}% · ${bytesLabel(bytes)} из ${bytesLabel(totalBytes)}`
+            ? translate("transferProgress.value", {
+                percent: percentLabel,
+                bytes: bytesLabel(bytes),
+                total: bytesLabel(totalBytes),
+              })
             : status
         }
       >
@@ -73,11 +82,9 @@ export const TransferProgress = ({
         onClick={onCancel}
         disabled={phase === "cancelling"}
       >
-        Отменить передачу
+        {translate("transferProgress.cancel")}
       </button>
-      <p className={styles.transferHint}>
-        Держите страницу открытой во время передачи
-      </p>
+      <p className={styles.transferHint}>{translate("keepPageOpen")}</p>
     </div>
   );
 };

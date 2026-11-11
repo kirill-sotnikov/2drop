@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import {
   filesSchema,
   formatId,
@@ -10,12 +11,19 @@ import {
 } from "protocol";
 import { type SubmitEventHandler, useEffect, useRef, useState } from "react";
 import * as styles from "../app/page.css";
-import { bytesLabel } from "../lib/format";
+import { useBytesLabel } from "../lib/format";
 import { useSession } from "../lib/session-context";
+import { type ErrorKey, UiError } from "../lib/ui-error";
 import { FileList } from "./file-list";
 import { Icon } from "./icon";
 import { PageLoader } from "./page-loader";
 import { TransferProgress } from "./transfer-progress";
+
+type LookupMessage =
+  | "sendPage.checking"
+  | "recipientUnavailable"
+  | `sendPage.lookup.${"available" | "busy" | "self"}`
+  | ErrorKey;
 
 const fitDropOutline = (outline: SVGRectElement | null) => {
   if (!outline) return undefined;
@@ -43,10 +51,13 @@ const fitDropOutline = (outline: SVGRectElement | null) => {
   return () => observer.disconnect();
 };
 
+// eslint-disable-next-line complexity
 export const SendScreen = ({ target }: { readonly target: string }) => {
+  const translate = useTranslations();
+  const bytesLabel = useBytesLabel();
   const id = normalizeId(target);
   const { state, lookup, propose, cancel } = useSession();
-  const [status, setStatus] = useState("Проверяем получателя…");
+  const [status, setStatus] = useState<LookupMessage>("sendPage.checking");
   const [available, setAvailable] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [draggingFiles, setDraggingFiles] = useState(false);
@@ -54,15 +65,18 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
   const [checkedId, setCheckedId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const transferPanel = useRef<HTMLElement>(null);
+
   const [dismissedTransfer, setDismissedTransfer] = useState<string | null>(
     null,
   );
+
   const transfer =
     state.transfer?.direction === "send" &&
     state.transfer.transfer.receiverId === id &&
     state.transfer.transfer.id !== dismissedTransfer
       ? state.transfer
       : null;
+
   const transferId = transfer?.transfer.id;
 
   useEffect(() => {
@@ -88,17 +102,17 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
         setAvailable(result === "available");
 
         setStatus(
-          {
-            available: "Получатель доступен",
-            unavailable: "Получатель недоступен",
-            busy: "Получатель занят",
-            self: "Это ваш ID. Укажите ID другого устройства.",
-          }[result],
+          result === "unavailable"
+            ? "recipientUnavailable"
+            : `sendPage.lookup.${result}`,
         );
       } catch (error) {
         if (live) {
           setAvailable(false);
-          setStatus(error instanceof Error ? error.message : String(error));
+
+          setStatus(
+            error instanceof UiError ? error.key : "errors.lookupFailed",
+          );
         }
       } finally {
         if (live) setCheckedId(id);
@@ -144,11 +158,11 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
           <Icon name="send" />
         </span>
         <h1 className={styles.pageTitle} style={{ marginTop: 24 }}>
-          Некорректный ID
+          {translate("sendPage.invalidId")}
         </h1>
-        <p>Проверьте приглашение или введите ID вручную.</p>
+        <p>{translate("sendPage.invalidIdHint")}</p>
         <Link href="/" className={styles.button}>
-          На главный экран <Icon name="arrow" size={18} />
+          {translate("backHome")} <Icon name="arrow" size={18} />
         </Link>
       </section>
     );
@@ -160,17 +174,17 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
     state.connection !== "error" &&
     !state.error
   ) {
-    return <PageLoader message="Проверяем получателя…" />;
+    return <PageLoader message={translate("sendPage.checking")} />;
   }
 
   return (
     <>
       <div className={styles.pageHeading}>
         <div>
-          <h1 className={styles.pageTitle}>Отправить файл</h1>
+          <h1 className={styles.pageTitle}>{translate("sendFile")}</h1>
           {!transfer && (
             <p className={styles.pageDescription}>
-              Выберите файлы для получателя.
+              {translate("sendPage.description")}
             </p>
           )}
         </div>
@@ -180,14 +194,14 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
           ref={transferPanel}
           tabIndex={-1}
           className={styles.card}
-          aria-label="Текущая передача"
+          aria-label={translate("sendPage.transferLabel")}
         >
           <h2 className={styles.cardTitle} aria-live="polite">
             {transfer.phase === "complete"
-              ? "Файлы отправлены"
+              ? translate("sendPage.sent")
               : transfer.phase === "ended"
-                ? "Передача завершена"
-                : "Передача файлов"}
+                ? translate("transferEnded")
+                : translate("sendPage.transferring")}
           </h2>
           <p
             className={styles.fileSummary}
@@ -199,29 +213,29 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
           >
             {transfer.transfer.files.length === 1
               ? transfer.transfer.files[0].name
-              : `Файлов: ${transfer.transfer.files.length}`}
+              : translate("fileCount", {
+                  count: transfer.transfer.files.length,
+                })}
           </p>
           <p className={styles.metadata}>
-            {bytesLabel(totalFileBytes(transfer.transfer.files))} · Получатель:{" "}
-            {formatId(transfer.transfer.receiverId)}
+            {bytesLabel(totalFileBytes(transfer.transfer.files))}
+            {translate("sendPage.recipientSummary", {
+              id: formatId(transfer.transfer.receiverId),
+            })}
           </p>
           {transfer.phase === "complete" && (
             <p className={styles.success}>
               {transfer.transfer.files.length === 1
-                ? "Файл передан успешно"
-                : "Все файлы получены получателем"}
+                ? translate("fileSent")
+                : translate("sendPage.delivered")}
             </p>
           )}
           {transfer.phase === "ended" && (
-            <p role="status">{transfer.message}</p>
+            <p role="status">
+              {transfer.message && translate(transfer.message)}
+            </p>
           )}
-          {!["complete", "ended"].includes(transfer.phase) ? (
-            <TransferProgress
-              transfer={transfer}
-              totalBytes={totalFileBytes(transfer.transfer.files)}
-              onCancel={cancel}
-            />
-          ) : (
+          {["complete", "ended"].includes(transfer.phase) ? (
             <button
               type="button"
               className={styles.sendButton}
@@ -231,9 +245,15 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
               }}
             >
               {transfer.phase === "complete"
-                ? "Отправить ещё"
-                : "Вернуться к файлам"}
+                ? translate("sendPage.sendMore")
+                : translate("sendPage.backToFiles")}
             </button>
+          ) : (
+            <TransferProgress
+              transfer={transfer}
+              totalBytes={totalFileBytes(transfer.transfer.files)}
+              onCancel={cancel}
+            />
           )}
         </section>
       ) : (
@@ -243,7 +263,9 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
               <Icon name="receive" size={24} />
             </span>
             <h2 className={styles.recipientHeading}>
-              <span className={styles.recipientLabel}>Получатель</span>{" "}
+              <span className={styles.recipientLabel}>
+                {translate("sendPage.recipient")}
+              </span>{" "}
               {formatId(id)}
             </h2>
           </div>
@@ -254,14 +276,14 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
               data-online={available && state.connection === "online"}
             >
               {state.connection === "online"
-                ? status
-                : "Ожидаем соединения с сервером…"}
+                ? translate(status)
+                : translate("sendPage.waitingForServer")}
             </p>
             <button
               type="button"
               className={styles.refreshRecipient}
-              aria-label="Проверить ещё раз"
-              title="Проверить ещё раз"
+              aria-label={translate("sendPage.checkAgain")}
+              title={translate("sendPage.checkAgain")}
               disabled={state.connection !== "online" || Boolean(busy)}
               onClick={() => setCheck((value) => value + 1)}
             >
@@ -271,12 +293,9 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
           {(!available || state.connection !== "online") && (
             <div className={styles.emptyState}>
               <Icon name="qr" size={32} />
-              <p>
-                Попросите получателя открыть страницу «Получить» и проверьте его
-                ID.
-              </p>
+              <p>{translate("sendPage.askRecipient")}</p>
               <Link href="/" className={styles.textButton}>
-                Ввести другой ID
+                {translate("sendPage.anotherId")}
               </Link>
             </div>
           )}
@@ -318,12 +337,16 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
                 </svg>
                 <Icon name="folder" size={files.length > 0 ? 36 : 68} />
                 <span className={styles.dropPrompt}>
-                  {files.length > 0 ? "Добавить файлы" : "Выбрать файлы"}
+                  {files.length > 0
+                    ? translate("sendPage.addFiles")
+                    : translate("sendPage.chooseFiles")}
                   <span className={styles.dropBrowse}>
                     <span className={styles.desktopDropHint}>
-                      Или перетащите их сюда ·{" "}
+                      {translate("sendPage.dragFiles")}{" "}
                     </span>
-                    До {bytesLabel(state.maxFileBytes)} суммарно
+                    {translate("sendPage.sizeLimit", {
+                      size: bytesLabel(state.maxFileBytes),
+                    })}
                   </span>
                 </span>
                 <input
@@ -331,13 +354,16 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
                   ref={fileInput}
                   className={styles.dropInput}
                   type="file"
-                  aria-label={`Выберите файлы на устройстве. Файлы до ${bytesLabel(state.maxFileBytes)} суммарно`}
+                  aria-label={translate("sendPage.fileInputLabel", {
+                    size: bytesLabel(state.maxFileBytes),
+                  })}
                   multiple
                   disabled={Boolean(busy)}
                   onChange={(event) => {
                     const selected = Array.from(
                       event.currentTarget.files ?? [],
                     );
+
                     setFiles((current) => [...current, ...selected]);
                     event.currentTarget.value = "";
                   }}
@@ -346,7 +372,8 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
               {files.length > 0 && (
                 <>
                   <p className={styles.metadata}>
-                    Файлов: {files.length} · {bytesLabel(totalBytes)}
+                    {translate("fileCount", { count: files.length })} ·{" "}
+                    {bytesLabel(totalBytes)}
                   </p>
                   <FileList
                     files={files}
@@ -363,20 +390,21 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
                   />
                   {files.length > 1 && (
                     <p className={styles.muted}>
-                      Получатель получит все файлы одним ZIP
+                      {translate("sendPage.zipHint")}
                     </p>
                   )}
                 </>
               )}
               {totalBytes > state.maxFileBytes && (
                 <p className={styles.error} role="alert">
-                  Общий размер файлов превышает лимит прототипа
+                  {translate("sendPage.sizeExceeded")}
                 </p>
               )}
               {invalidFiles && (
                 <p className={styles.error} role="alert">
-                  Можно выбрать до {MAX_FILES_PER_TRANSFER} файлов. Сократите
-                  список или длину имён.
+                  {translate("sendPage.invalidFiles", {
+                    count: MAX_FILES_PER_TRANSFER,
+                  })}
                 </p>
               )}
               <button
@@ -389,11 +417,11 @@ export const SendScreen = ({ target }: { readonly target: string }) => {
                   Boolean(busy)
                 }
               >
-                <Icon name="send" size={20} /> Отправить
+                <Icon name="send" size={20} /> {translate("send")}
               </button>
               {!busy && (
                 <p className={styles.transferHint}>
-                  Держите страницу открытой во время передачи
+                  {translate("keepPageOpen")}
                 </p>
               )}
             </>

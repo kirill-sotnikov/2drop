@@ -13,6 +13,7 @@ import {
 import * as styles from "../app/page.css";
 import { bytesLabel } from "../lib/format";
 import { useSession } from "../lib/session-context";
+import * as homeStyles from "./home-screen.css";
 import { Icon } from "./icon";
 
 export const HomeScreen = () => {
@@ -77,15 +78,16 @@ export const HomeScreen = () => {
     <>
       <h1 className={styles.visuallyHidden}>Передача файлов</h1>
       <section className={styles.grid} aria-label="Передача файлов">
-        <form className={styles.actionCard} onSubmit={submit}>
+        <form className={homeStyles.sendCard} onSubmit={submit}>
           <div className={styles.cardHeading}>
-            <span className={styles.actionIcon}>
+            <span className={homeStyles.sendIcon}>
               <Icon name="send" />
             </span>
             <h2 className={styles.cardTitle}>Отправить файл</h2>
           </div>
           <label htmlFor="recipient">ID получателя</label>
           <input
+            className={homeStyles.recipient}
             id="recipient"
             ref={recipientInput}
             value={id}
@@ -97,14 +99,18 @@ export const HomeScreen = () => {
             maxLength={32}
             required
           />
-          {error && <p role="alert">{error}</p>}
-          <button className={styles.cardButton} type="submit">
+          {error && (
+            <p className={homeStyles.error} role="alert">
+              {error}
+            </p>
+          )}
+          <button className={homeStyles.cardButton} type="submit">
             Продолжить →
           </button>
         </form>
-        <section className={styles.actionCard}>
+        <section className={homeStyles.receiveCard}>
           <div className={styles.cardHeading}>
-            <span className={styles.actionIcon}>
+            <span className={homeStyles.receiveIcon}>
               <Icon name="receive" />
             </span>
             <h2 className={styles.cardTitle}>Получить файл</h2>
@@ -115,7 +121,11 @@ export const HomeScreen = () => {
           </p>
           <Link
             className={
-              styles.button + " " + styles.secondary + " " + styles.cardButton
+              styles.button +
+              " " +
+              styles.secondary +
+              " " +
+              homeStyles.cardButton
             }
             href="/receive"
           >
@@ -123,7 +133,7 @@ export const HomeScreen = () => {
           </Link>
         </section>
       </section>
-      <section className={styles.banner}>
+      <section className={homeStyles.banner}>
         <div>
           <h2 className={styles.bannerTitle}>Передача файлов в один клик</h2>
           <p className={styles.bannerDescription}>
@@ -131,14 +141,14 @@ export const HomeScreen = () => {
             В исходном качестве.
           </p>
         </div>
-        <div className={styles.illustration} aria-hidden="true">
+        <div className={homeStyles.illustration} aria-hidden="true">
           <div className={styles.paperBack} />
           <div className={styles.paperFront}>
             <Icon name="file" size={32} />
           </div>
         </div>
       </section>
-      <section className={styles.infoRow}>
+      <section className={homeStyles.infoRow}>
         <span className={styles.shieldIcon}>
           <Icon name="shield" />
         </span>

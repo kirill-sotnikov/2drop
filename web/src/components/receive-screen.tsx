@@ -133,6 +133,7 @@ export const ReceiveScreen = () => {
                 <button
                   type="button"
                   className={styles.copyId}
+                  data-copied={copied}
                   onClick={copy}
                   aria-label="Скопировать ID"
                   title={message || "Скопировать ID"}

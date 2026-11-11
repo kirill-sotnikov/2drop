@@ -1,5 +1,27 @@
 import { globalStyle, keyframes, style } from "@vanilla-extract/css";
 
+const motion = "(prefers-reduced-motion: no-preference)";
+const hoverMotion = `${motion} and (hover: hover) and (pointer: fine)`;
+const easeOut = "cubic-bezier(0.22, 1, 0.36, 1)";
+
+const reveal = keyframes({
+  from: { opacity: 0, transform: "translateY(12px)" },
+  to: { opacity: 1, transform: "translateY(0)" },
+});
+
+const appear = { animation: `${reveal} 460ms ${easeOut} backwards` };
+
+const confirm = keyframes({
+  from: { opacity: 0, transform: "scale(0.7)" },
+  "60%": { opacity: 1, transform: "scale(1.12)" },
+  to: { opacity: 1, transform: "scale(1)" },
+});
+
+const navReveal = keyframes({
+  from: { opacity: 0, transform: "translate(-50%, 16px)" },
+  to: { opacity: 1, transform: "translate(-50%, 0)" },
+});
+
 export const main = style({
   maxWidth: 792,
   margin: "0 auto",
@@ -48,6 +70,10 @@ export const backLink = style({
   fontSize: 15,
   fontWeight: 500,
   ":hover": { color: "#7bceff" },
+  "@media": {
+    [motion]: { ...appear, transition: `transform 180ms ${easeOut}` },
+    [hoverMotion]: { ":hover": { transform: "translateX(-3px)" } },
+  },
 });
 
 export const connection = style({
@@ -76,33 +102,80 @@ export const nav = style({
   zIndex: 10,
   display: "flex",
   alignItems: "center",
-  gap: 6,
+  gap: 4,
   width: "calc(100% - 32px)",
-  maxWidth: 570,
-  padding: 7,
+  maxWidth: 360,
+  padding: 4,
   border: "1px solid #31516b",
-  borderRadius: 30,
+  borderRadius: 999,
   background: "rgba(18, 48, 72, 0.94)",
   backdropFilter: "blur(20px)",
   boxShadow: "0 8px 32px #07121a60",
+  "::before": {
+    content: '""',
+    position: "absolute",
+    top: 4,
+    bottom: 4,
+    left: 4,
+    width: "calc((100% - 12px) / 2)",
+    borderRadius: "inherit",
+    background: "#284b66",
+    pointerEvents: "none",
+  },
+  selectors: {
+    '&[data-receiving="true"]::before': {
+      transform: "translateX(calc(100% + 4px))",
+    },
+  },
+  "@media": {
+    [motion]: {
+      animation: `${navReveal} 500ms ${easeOut} backwards`,
+      "::before": { transition: `transform 320ms ${easeOut}` },
+    },
+  },
 });
 
 export const navLink = style({
+  position: "relative",
+  zIndex: 1,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  gap: 10,
-  flex: 1,
-  minHeight: 54,
-  borderRadius: 23,
+  gap: 8,
+  flex: "1 1 0",
+  minWidth: 0,
+  minHeight: 44,
+  padding: "8px 12px",
+  borderRadius: 999,
   textDecoration: "none",
   color: "#b7ccdc",
   fontSize: 14,
   fontWeight: 500,
   selectors: {
-    '&[aria-current="page"]': { background: "#284b66", color: "#47b6ff" },
+    '&[aria-current="page"]': { color: "#47b6ff" },
+    '&:hover:not([aria-current="page"])': { background: "#25435a" },
   },
-  ":hover": { background: "#25435a" },
+  "@media": {
+    "screen and (max-width: 600px), (pointer: coarse)": { minHeight: 48 },
+    [motion]: {
+      transition: `color 200ms ease, background 200ms ease, transform 180ms ${easeOut}`,
+      ":active": { transform: "scale(0.96)" },
+    },
+  },
+});
+
+globalStyle(`${navLink} > svg`, {
+  "@media": {
+    [motion]: { transition: `transform 260ms ${easeOut}` },
+  },
+});
+
+globalStyle(`${navLink}[aria-current="page"] > svg`, {
+  "@media": { [motion]: { transform: "translateY(-2px)" } },
+});
+
+globalStyle(`${navLink}:hover > svg, ${navLink}:focus-visible > svg`, {
+  "@media": { [hoverMotion]: { transform: "translateY(-3px)" } },
 });
 
 export const grid = style({
@@ -119,6 +192,7 @@ export const card = style({
   padding: "clamp(22px, 4vw, 30px)",
   marginBottom: 20,
   minWidth: 0,
+  "@media": { [motion]: appear },
 });
 
 export const actionCard = style([
@@ -207,6 +281,7 @@ export const notice = style({
   color: "#ffdcab",
   borderRadius: 18,
   marginBottom: 24,
+  "@media": { [motion]: appear },
 });
 
 export const receiveFile = style({
@@ -256,6 +331,7 @@ export const qr = style({
   boxSizing: "content-box",
   width: "min(256px, calc(100% - 20px))",
   "@media": {
+    [motion]: { ...appear, animationDelay: "80ms" },
     "screen and (min-width: 768px)": {
       gridArea: "qr",
       width: 256,
@@ -271,6 +347,7 @@ export const idRow = style({
   gap: "clamp(6px, 2vw, 12px)",
   margin: "20px 0",
   "@media": {
+    [motion]: { ...appear, animationDelay: "140ms" },
     "screen and (min-width: 768px)": {
       gridArea: "id",
       alignSelf: "start",
@@ -309,6 +386,11 @@ export const copyId = style({
   background: "transparent",
   color: "#adc0cf",
   ":hover": { color: "#f5f7fa" },
+  selectors: { '&[data-copied="true"]': { color: "#64d5ad" } },
+});
+
+globalStyle(`${copyId}[data-copied="true"] > svg`, {
+  "@media": { [motion]: { animation: `${confirm} 300ms ${easeOut}` } },
 });
 
 export const recipientHeading = style({
@@ -353,6 +435,12 @@ export const dropZone = style({
   background: "#192a38",
   color: "#629bd2",
   textAlign: "center",
+  "@media": {
+    [motion]: {
+      ...appear,
+      transition: "background 200ms ease, color 200ms ease, opacity 200ms ease",
+    },
+  },
   selectors: {
     '&[data-compact="true"]': {
       minHeight: 104,
@@ -386,6 +474,19 @@ export const dropOutline = style({
   height: "calc(100% - 2px)",
   overflow: "visible",
   pointerEvents: "none",
+});
+
+globalStyle(`${dropZone} > svg:not(${dropOutline})`, {
+  "@media": { [motion]: { transition: `transform 260ms ${easeOut}` } },
+});
+
+globalStyle(
+  `${dropZone}[data-dragging=true]:has(input:enabled) > svg:not(${dropOutline}), ${dropZone}:has(input:focus-visible) > svg:not(${dropOutline})`,
+  { "@media": { [motion]: { transform: "translateY(-4px) rotate(-4deg)" } } },
+);
+
+globalStyle(`${dropZone}:hover:has(input:enabled) > svg:not(${dropOutline})`, {
+  "@media": { [hoverMotion]: { transform: "translateY(-4px) rotate(-4deg)" } },
 });
 
 export const dropPrompt = style({
@@ -438,6 +539,18 @@ export const fileRow = style({
   padding: "12px 0",
   borderBottom: "1px solid #344653",
   fontSize: 16,
+  "@media": {
+    [motion]: {
+      ...appear,
+      animationDuration: "300ms",
+      selectors: {
+        "&:nth-child(2)": { animationDelay: "30ms" },
+        "&:nth-child(3)": { animationDelay: "60ms" },
+        "&:nth-child(4)": { animationDelay: "90ms" },
+        "&:nth-child(n + 5)": { animationDelay: "120ms" },
+      },
+    },
+  },
 });
 
 export const fileSize = style({
@@ -447,7 +560,11 @@ export const fileSize = style({
   whiteSpace: "nowrap",
 });
 
-export const success = style({ color: "#64d5ad", fontWeight: 600 });
+export const success = style({
+  color: "#64d5ad",
+  fontWeight: 600,
+  "@media": { [motion]: appear },
+});
 
 export const banner = style({
   position: "relative",
@@ -576,7 +693,10 @@ export const pageSpinner = style([
   { width: 40, height: 40, borderWidth: 3 },
 ]);
 
-export const transferProgress = style({ marginTop: 24 });
+export const transferProgress = style({
+  marginTop: 24,
+  "@media": { [motion]: appear },
+});
 
 export const progressHeader = style({
   display: "flex",
@@ -641,3 +761,31 @@ export const progressBytes = style({
   fontSize: 14,
   fontVariantNumeric: "tabular-nums",
 });
+
+// Home card controls have their own motion; these cover the other screens
+// and shared shell controls without overriding the home animation.
+globalStyle(
+  `${main} button:not(${cardButton}), ${main} a${button}:not(${cardButton})`,
+  {
+    "@media": {
+      [motion]: {
+        transition: `transform 180ms ${easeOut}, color 180ms ease, background 180ms ease, filter 180ms ease, opacity 180ms ease`,
+      },
+      "(prefers-reduced-motion: reduce)": { transition: "none" },
+    },
+  },
+);
+
+globalStyle(
+  `${main} button:not(${cardButton}):enabled:hover:not(:active), ${main} a${button}:not(${cardButton}):hover:not(:active)`,
+  {
+    "@media": { [hoverMotion]: { transform: "translateY(-2px)" } },
+  },
+);
+
+globalStyle(
+  `${main} button:not(${cardButton}):enabled:active, ${main} a${button}:not(${cardButton}):active`,
+  {
+    "@media": { [motion]: { transform: "translateY(1px) scale(0.98)" } },
+  },
+);

@@ -33,13 +33,17 @@ export const Shell = ({ children }: { readonly children: ReactNode }) => {
           </span>
         </Link>
       </header>
-      <nav className={styles.nav} aria-label="Основная навигация">
+      <nav
+        className={styles.nav}
+        data-receiving={pathname === "/receive"}
+        aria-label="Основная навигация"
+      >
         <Link
           href="/"
           className={styles.navLink}
           aria-current={pathname === "/receive" ? undefined : "page"}
         >
-          <Icon name="send" size={22} />
+          <Icon name="send" size={20} />
           Отправить
         </Link>
         <Link
@@ -47,7 +51,7 @@ export const Shell = ({ children }: { readonly children: ReactNode }) => {
           className={styles.navLink}
           aria-current={pathname === "/receive" ? "page" : undefined}
         >
-          <Icon name="receive" size={22} />
+          <Icon name="receive" size={20} />
           Получить
         </Link>
       </nav>

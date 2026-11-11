@@ -407,6 +407,7 @@ export const visuallyHidden = style({
   border: 0,
 });
 export const fileName = style({
+  gridArea: "name",
   overflowWrap: "anywhere",
   listStyle: "none",
   fontWeight: 650,
@@ -422,15 +423,24 @@ export const fileList = style({
 export const fileRow = style({
   display: "grid",
   gridTemplateColumns: "minmax(0, 1fr) auto",
+  gridTemplateAreas: '"name size"',
   alignItems: "baseline",
-  gap: 16,
+  columnGap: 16,
   padding: "14px 0",
   borderBottom: "1px solid #20221c20",
   fontSize: 14,
-  selectors: { "&:last-child": { borderBottom: 0 } },
+  selectors: {
+    "&:last-child": { borderBottom: 0 },
+    '&[data-removable="true"]': {
+      gridTemplateAreas: '"name remove" "size remove"',
+      rowGap: 2,
+      padding: "8px 0",
+    },
+  },
   "@media": { [motion]: { ...appear, animationDuration: "300ms" } },
 });
 export const fileSize = style({
+  gridArea: "size",
   color: mutedInk,
   fontSize: 12,
   fontVariantNumeric: "tabular-nums",
@@ -574,6 +584,8 @@ globalStyle(`${dropZone} > svg:not(${dropOutline})`, {
   "@media": { [mobile]: { width: 40, height: 40 } },
 });
 export const removeFile = style({
+  gridArea: "remove",
+  alignSelf: "center",
   display: "grid",
   placeItems: "center",
   width: 44,

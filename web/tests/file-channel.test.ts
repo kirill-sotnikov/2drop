@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { unzipSync } from "fflate";
-import { BUFFER_HIGH_BYTES, totalFileBytes, VERSION } from "protocol";
+import {
+  BUFFER_HIGH_BYTES,
+  PROGRESS_TIMEOUT_MS,
+  totalFileBytes,
+  VERSION,
+} from "protocol";
 import { archiveNames } from "../src/lib/archive-names";
 import { FileChannel, ReceiveBuffer } from "../src/lib/file-channel";
 
@@ -223,6 +228,128 @@ const tick = () =>
   new Promise((resolve) => {
     setTimeout(resolve, 15);
   });
+
+test("a slow draining send queue does not expire while the receiver is still receiving", async (context) => {
+  context.mock.timers.enable({ apis: ["Date", "setInterval"] });
+
+  const channel = new Channel();
+  const file = new File([new Uint8Array(BUFFER_HIGH_BYTES * 2)], "file.bin");
+  const failures: string[] = [];
+  const send = channel.send.bind(channel);
+
+  channel.send = (data) => {
+    send(data);
+
+    channel.bufferedAmount +=
+      typeof data === "string" ? data.length : data.byteLength;
+  };
+
+  const engine = new FileChannel(
+    channel as unknown as RTCDataChannel,
+    randomUUID(),
+    [{ name: file.name, size: file.size, mime: file.type }],
+    file.size,
+    () => 0,
+    [file],
+    {
+      progress: () => {},
+      received: () => assert.fail("sender cannot receive a file"),
+      acknowledged: () => {},
+      failed: (message) => failures.push(message),
+    },
+  );
+
+  try {
+    channel.open();
+    for (
+      let attempt = 0;
+      attempt < 100 && channel.bufferedAmount <= BUFFER_HIGH_BYTES;
+      attempt++
+    )
+      await tick();
+    assert(channel.bufferedAmount > BUFFER_HIGH_BYTES);
+
+    const queuedMessages = channel.sent.length;
+
+    // At 16 KiB/s, draining 1 MiB to the low watermark takes longer than 30s.
+    for (let second = 0; second < 40; second++) {
+      channel.bufferedAmount -= 16 * 1_024;
+      context.mock.timers.tick(1_000);
+    }
+
+    assert.deepEqual(failures, []);
+
+    assert.equal(
+      channel.sent.length,
+      queuedMessages,
+      "sender is still waiting for backpressure",
+    );
+
+    assert.equal(channel.readyState, "open");
+
+    const sentEnd = () =>
+      channel.sent.some(
+        (data) => typeof data === "string" && JSON.parse(data).type === "end",
+      );
+
+    for (let attempt = 0; attempt < 100 && !sentEnd(); attempt++) {
+      channel.bufferedAmount = 0;
+      channel.dispatchEvent(new Event("bufferedamountlow"));
+      await tick();
+    }
+
+    assert(sentEnd());
+    channel.bufferedAmount = 0;
+    context.mock.timers.tick(1_000);
+
+    assert.deepEqual(
+      failures,
+      [],
+      "draining the queue leaves time for the acknowledgement",
+    );
+
+    context.mock.timers.tick(PROGRESS_TIMEOUT_MS);
+
+    assert.deepEqual(
+      failures,
+      ["errors.channelTimeout"],
+      "missing acknowledgement still expires after the queue drains",
+    );
+  } finally {
+    engine.dispose();
+  }
+});
+
+test("a receiver with no incoming data still expires", (context) => {
+  context.mock.timers.enable({ apis: ["Date", "setInterval"] });
+
+  const channel = new Channel();
+  const failures: string[] = [];
+
+  const engine = new FileChannel(
+    channel as unknown as RTCDataChannel,
+    randomUUID(),
+    [{ name: "file.bin", size: 100, mime: "" }],
+    1_000,
+    () => 0,
+    undefined,
+    {
+      progress: () => {},
+      received: () => {},
+      acknowledged: () => {},
+      failed: (message) => failures.push(message),
+    },
+  );
+
+  try {
+    channel.open();
+    context.mock.timers.tick(PROGRESS_TIMEOUT_MS + 1_000);
+    assert.deepEqual(failures, ["errors.channelTimeout"]);
+    assert.equal(channel.readyState, "closed");
+  } finally {
+    engine.dispose();
+  }
+});
 
 test("sender reads only on open, chunks to negotiated size and waits for receiver acknowledgement", async () => {
   const channel = new Channel();

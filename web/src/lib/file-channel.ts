@@ -199,6 +199,15 @@ export class FileChannel {
     };
 
     this.timer = setInterval(() => {
+      // Enqueuing pauses during backpressure even when the remote peer is still
+      // receiving. The receiver owns the no-data timeout while bytes are queued;
+      // ICE failure and the signalling transfer deadline also remain active.
+      if (
+        outgoing &&
+        channel.readyState === "open" &&
+        channel.bufferedAmount > 0
+      )
+        this.touch();
       if (!this.done && Date.now() - this.lastProgress > PROGRESS_TIMEOUT_MS)
         this.fail(new UiError("errors.channelTimeout"));
     }, 1_000);

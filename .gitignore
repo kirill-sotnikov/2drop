@@ -26,6 +26,7 @@ next-env.d.ts
 # Build, local secrets, and browser test output
 dist/
 .env
+.env.production
 .env.local
 **/.env.local
 test-results/
